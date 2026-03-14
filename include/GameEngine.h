@@ -64,6 +64,7 @@ private:
     // ── State ────────────────────────────────────────────────
     GameState m_state        = GameState::Playing;
     float     m_messageTimer = 0.f;   // seconds left to show feedback
+    float     m_totalTime    = 0.f;   // for animations (burning pulse)
 
     // ── Game-loop phases ─────────────────────────────────────
     void processEvents();
@@ -87,7 +88,7 @@ private:
 
     // ── Layout constants ─────────────────────────────────────
     static constexpr unsigned WIN_W   = 600u;
-    static constexpr unsigned WIN_H   = 700u;
-    static constexpr float    BOARD_X = 95.f;
-    static constexpr float    BOARD_Y = 90.f;
+    static constexpr unsigned WIN_H   = 800u;
+    static constexpr float    BOARD_X = 42.f;
+    static constexpr float    BOARD_Y = 140.f;
 };

@@ -1,5 +1,6 @@
 #include "Tile.h"
 #include <cctype>
+#include <cmath>
 
 // -- Scrabble-style letter point values ----------------------------------------
 static const int LETTER_VALUES[26] = {
@@ -40,6 +41,17 @@ Tile::Tile(char letter, int col, int row,
 // ------------------------------------------------------------------------------
 void Tile::setState(TileState s) {
     m_state = s;
+    if (m_state == TileState::Burning) {
+        m_isPersistentBurn = true;
+        m_burnCounter = MAX_BURN_STEPS;
+    }
+
+    if (s == TileState::Normal && m_isPersistentBurn) {
+        m_state = TileState::Burning;
+    } else {
+        m_state = s;
+    }
+
     updateColors();
 }
 
@@ -65,9 +77,21 @@ bool Tile::contains(sf::Vector2f point) const {
 // ------------------------------------------------------------------------------
 //  Rendering  -  only draw if fully initialised (has text)
 // ------------------------------------------------------------------------------
-void Tile::draw(sf::RenderWindow& window) const {
+void Tile::draw(sf::RenderWindow& window, float totalTime) const {
     if (!m_text.has_value()) return;   // skip uninitialised default tiles
-    window.draw(m_background);
+
+    // Create a mutable copy for animation
+    sf::RectangleShape bg = m_background;
+
+    if (m_state == TileState::Burning) {
+        float pulse = (std::sin(totalTime * 12.f) + 1.f) / 2.f; // 0..1
+        int r = 255;
+        int g = 50 + static_cast<int>(pulse * 100);
+        int b = 50;
+        bg.setFillColor(sf::Color(r, g, b));
+    }
+
+    window.draw(bg);
     window.draw(*m_text);
 }
 
@@ -90,12 +114,89 @@ void Tile::updateColors() {
             if (m_text.has_value()) m_text->setFillColor(sf::Color(50, 30, 10));
             break;
         case TileState::Selected:
-            m_background.setFillColor(sf::Color(80, 190, 80));   // green
-            if (m_text.has_value()) m_text->setFillColor(sf::Color(255, 255, 255));
+            if (m_isPersistentBurn) {
+                // A "Hot" selection - maybe a sickly lime green or orange-green
+                m_background.setFillColor(sf::Color(180, 180, 0)); 
+            } else {
+                m_background.setFillColor(sf::Color(80, 190, 80)); // Normal Green
+            }
             break;
         case TileState::Burning:
-            m_background.setFillColor(sf::Color(220, 70, 20));   // red-orange
-            if (m_text.has_value()) m_text->setFillColor(sf::Color(255, 240, 200));
+            int intensity = 255 - (m_burnCounter * 30); 
+            m_background.setFillColor(sf::Color(255, 255 - intensity, 0)); // Shifts from Yellow to Red
             break;
     }
 }
+
+// for burning tiles
+
+void Tile::tickBurn() {
+    // Only tick down if the tile is actually in a Burning state
+    if (m_isPersistentBurn && m_burnCounter > 0) {
+        m_burnCounter--;
+        
+        // Update the visual representation (e.g., the text could show the number)
+        if (m_text.has_value()) {
+         
+            m_text->setString(std::string(1, m_letter) + " " + std::to_string(m_burnCounter));
+            
+         
+            sf::FloatRect tb = m_text->getLocalBounds();
+            m_text->setOrigin({ 
+                tb.position.x + tb.size.x / 2.f, 
+                tb.position.y + tb.size.y / 2.f 
+            });
+
+           
+            sf::Vector2f bgCenter = m_background.getPosition() + (m_background.getSize() / 2.f);
+            m_text->setPosition(bgCenter);
+        }
+        
+        updateColors();
+    }
+}
+
+void Tile::resetBurnTimer() {
+    m_state = TileState::Normal;
+    m_burnCounter = 0;
+    
+    // Reset text to just the letter
+    if (m_text) {
+        m_text->setString(std::string(1, m_letter));
+    }
+    
+    updateColors();
+}
+
+void Tile::setGridPos(int col, int row) {
+    m_col = col;
+    m_row = row;
+}
+
+void Tile::setPosition(sf::Vector2f pixelPos) {
+    m_background.setPosition(pixelPos);
+    
+    centerText(); 
+}
+
+void Tile::centerText() {
+    // Safety check: only proceed if we actually have text objects
+    if (!m_text.has_value()) return;
+
+    sf::Vector2f bgPos = m_background.getPosition();
+    sf::Vector2f bgSize = m_background.getSize();
+    sf::Vector2f bgCenter = bgPos + (bgSize / 2.f);
+
+    // --- 1. Center the Main Letter ---
+    sf::FloatRect textBounds = m_text->getLocalBounds();
+    // Set origin to the center of the text's bounding box
+    m_text->setOrigin({
+        textBounds.position.x + textBounds.size.x / 2.f,
+        textBounds.position.y + textBounds.size.y / 2.f
+    });
+    m_text->setPosition(bgCenter);
+}
+
+
+
+

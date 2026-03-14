@@ -89,6 +89,7 @@ void GameEngine::processEvents() {
 //  Per-frame logic: fade the feedback message, sync HUD text.
 // ════════════════════════════════════════════════════════════════════════════
 void GameEngine::update(float dt) {
+    m_totalTime += dt;
     // Countdown and fade the feedback message
     if (m_messageTimer > 0.f) {
         m_messageTimer -= dt;
@@ -113,6 +114,10 @@ void GameEngine::update(float dt) {
                                tb.position.y + tb.size.y / 2.f});
         m_wordText.setPosition({WIN_W / 2.f,
                                  static_cast<float>(WIN_H) - 58.f});
+                                  if (m_grid.hasExploded()) {
+        m_state = GameState::GameOver;
+        showMessage("A TILE EXPLODED!", 5.0f);
+    }
     }
 }
 
@@ -130,7 +135,7 @@ void GameEngine::render() {
     m_window.draw(m_hintText);
 
     // ── The 4×4 tile grid ──────────────────────────────────────────────────
-    m_grid.draw(m_window);
+    m_grid.draw(m_window, m_totalTime);
 
     // ── HUD: score, level, current word, timed message ────────────────────
     m_window.draw(m_scoreText);
@@ -215,7 +220,8 @@ void GameEngine::trySubmitWord() {
         // Score via Player, then remove tiles from the board
         int pts = m_player.calculateWordScore(word, tileSum);
         m_player.addWord(word, tileSum);
-        m_grid.removeSelectedTiles();
+        int currentLevel = m_player.getLevel();
+        m_grid.removeSelectedTiles(currentLevel);
 
         // Pick a praise message based on the score earned
         std::string msg;
