@@ -2,95 +2,140 @@
 #include "Tile.h"
 #include <iostream>
 #include <string>
+#include <cstdint>
+#include <cmath>
+#include <algorithm>
 
-// ────────────────────────────────────────────────────────────────────────────
-//  Constructor
-//  NOTE: Grid and UI require a valid font, so we pass a default-constructed
-//        font here and rebuild both objects inside run() after loadFont().
-// ────────────────────────────────────────────────────────────────────────────
+// ============================================================
+//  Button  -  implementation
+//  label is std::optional<sf::Text> so Button is
+//  default-constructible despite sf::Text having no default ctor
+// ============================================================
+void Button::init(const sf::Font& font, const std::string& text,
+                  sf::Vector2f pos, sf::Vector2f size, unsigned fontSize)
+{
+    shape.setSize(size);
+    shape.setPosition(pos);
+    shape.setFillColor(sf::Color(70, 50, 30));
+    shape.setOutlineThickness(2.f);
+    shape.setOutlineColor(sf::Color(180, 140, 60));
+
+    // Construct sf::Text into the optional (same pattern as Tile)
+    label.emplace(font, text, fontSize);
+    label->setFillColor(sf::Color(255, 230, 150));
+
+    // Centre the label inside the button shape
+    sf::FloatRect lb = label->getLocalBounds();
+    label->setOrigin({ lb.position.x + lb.size.x / 2.f,
+                       lb.position.y + lb.size.y / 2.f });
+    label->setPosition(pos + size / 2.f);
+}
+
+bool Button::contains(sf::Vector2f point) const {
+    return shape.getGlobalBounds().contains(point);
+}
+
+void Button::setHover(bool h) {
+    hovered = h;
+    shape.setFillColor(h ? sf::Color(120, 88, 45)
+                         : sf::Color(70,  50, 30));
+    shape.setOutlineColor(h ? sf::Color(255, 200, 80)
+                            : sf::Color(180, 140, 60));
+}
+
+void Button::draw(sf::RenderWindow& window) const {
+    window.draw(shape);
+    if (label.has_value())
+        window.draw(*label);
+}
+
+// ============================================================
+//  GameEngine  -  constructor
+//
+//  sf::Text members that require a font cannot be initialised
+//  here because the font is not loaded yet at construction time.
+//  We initialise them with a temporary empty font and rebuild
+//  them properly inside run() after loadFont() succeeds.
+// ============================================================
 GameEngine::GameEngine()
     : m_window(sf::VideoMode({WIN_W, WIN_H}),
                "Bookworm",
                sf::Style::Titlebar | sf::Style::Close),
       m_grid(m_font, {BOARD_X, BOARD_Y}),
-      m_scoreText(m_font, "Score: 0",    22u),
-      m_levelText(m_font, "Level: 1",    22u),
-      m_wordText (m_font, "",            30u),
-      m_messageText(m_font, "",          28u),
-      m_hintText (m_font,
-          "Click tiles to spell  |  ENTER = submit  |  BACKSPACE = clear  |  ESC = pause  |  R = restart",
-          11u),
-      m_titleText(m_font, "BOOKWORM", 40u)
+      m_scoreText  (m_font, "Score: 0", 18u),
+      m_levelText  (m_font, "Level: 1", 18u),
+      m_wordText   (m_font, "...",       26u),
+      m_messageText(m_font, "",          24u),
+      m_hintText   (m_font, "",          13u),
+      m_titleText  (m_font, "BOOKWORM",  50u),
+      m_warningText(m_font, "",          15u)
 {
     m_window.setFramerateLimit(60);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  run()  –  public entry point; opens the window and drives the game loop
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
+//  run()
+// ============================================================
 void GameEngine::run() {
-    // 1. Load font first – everything text-related depends on it
     if (!loadFont()) {
-        std::cerr << "[GameEngine] ERROR: Could not load any font.\n"
-                  << "  Place a .ttf file such as 'arial.ttf' in the same\n"
-                  << "  folder as the executable, or in assets/fonts/.\n";
+        std::cerr << "[GameEngine] ERROR: No font found.\n"
+                  << "  Place arial.ttf next to Bookworm.exe, or in assets/fonts/\n";
         return;
     }
 
-    // 2. Rebuild objects that need a valid font
+    // Rebuild everything that needs a real font
     m_grid = Grid(m_font, {BOARD_X, BOARD_Y});
-    initHUDText();
 
-    // 3. Load dictionary
     if (!m_dictionary.loadFromFile("assets/words.txt")) {
-        std::cerr << "[Dictionary] words.txt not found – using built-in word list.\n";
+        std::cerr << "[Dictionary] words.txt not found - using built-in list.\n";
         m_dictionary.loadBuiltIn();
     }
-    std::cout << "[Dictionary] Loaded " << m_dictionary.size() << " words.\n";
+    std::cout << "[Dictionary] " << m_dictionary.size() << " words loaded.\n";
 
-    // 4. Main game loop
+    initHUDText();
+    initButtons();
+
     sf::Clock clock;
     while (m_window.isOpen()) {
         float dt = clock.restart().asSeconds();
+        m_totalTime += dt;
+
         processEvents();
         update(dt);
         render();
     }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  processEvents()
-//  Polls every pending SFML event and dispatches to the appropriate handler.
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
+//  processEvents
+// ============================================================
 void GameEngine::processEvents() {
     while (const auto event = m_window.pollEvent()) {
 
-        // ── Window close (X button) ────────────────────────────────────────
         if (event->is<sf::Event::Closed>()) {
             m_window.close();
             return;
         }
 
-        // ── Left mouse button pressed ──────────────────────────────────────
-        if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>()) {
-            if (mb->button == sf::Mouse::Button::Left)
-                onMousePressed({static_cast<float>(mb->position.x),
-                                 static_cast<float>(mb->position.y)});
-        }
+        if (const auto* mm = event->getIf<sf::Event::MouseMoved>())
+            onMouseMoved({ static_cast<float>(mm->position.x),
+                           static_cast<float>(mm->position.y) });
 
-        // ── Keyboard ──────────────────────────────────────────────────────
+        if (const auto* mb = event->getIf<sf::Event::MouseButtonPressed>())
+            if (mb->button == sf::Mouse::Button::Left)
+                onMousePressed({ static_cast<float>(mb->position.x),
+                                  static_cast<float>(mb->position.y) });
+
         if (const auto* kb = event->getIf<sf::Event::KeyPressed>())
             onKeyPressed(kb->code);
     }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
 //  update(dt)
-//  Per-frame logic: fade the feedback message, sync HUD text.
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
 void GameEngine::update(float dt) {
-    m_totalTime += dt;
-    // Countdown and fade the feedback message
+    // Fade feedback message
     if (m_messageTimer > 0.f) {
         m_messageTimer -= dt;
         float alpha = (m_messageTimer < 0.4f)
@@ -101,112 +146,289 @@ void GameEngine::update(float dt) {
         m_messageText.setFillColor(c);
     }
 
-    if (m_state == GameState::Playing) {
-        // Sync score / level labels
-        m_scoreText.setString("Score: " + std::to_string(m_player.getScore()));
-        m_levelText.setString("Level: " + std::to_string(m_player.getLevel()));
+    if (m_state != GameState::Playing) return;
 
-        // Sync current-word display and re-centre it
-        std::string word = m_grid.getSelectedWord();
-        m_wordText.setString(word.empty() ? "..." : word);
-        sf::FloatRect tb = m_wordText.getLocalBounds();
-        m_wordText.setOrigin({tb.position.x + tb.size.x / 2.f,
-                               tb.position.y + tb.size.y / 2.f});
-        m_wordText.setPosition({WIN_W / 2.f,
-                                 static_cast<float>(WIN_H) - 58.f});
-                                  if (m_grid.hasExploded()) {
+    // Game-over: any burning tile burnCounter reached 0
+    if (m_grid.hasExploded()) {
         m_state = GameState::GameOver;
-        showMessage("A TILE EXPLODED!", 5.0f);
+        return;
     }
-    }
+
+    // DFS possible-word check
+    m_noPossibleWord = !m_grid.hasPossibleWord(m_dictionary);
+
+    updateHUD();
 }
 
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
 //  render()
-//  Draws every visual layer in order.
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
 void GameEngine::render() {
-    m_window.clear(sf::Color(45, 30, 20));   // dark wood background
+    m_window.clear(sf::Color(35, 22, 12));
 
-    // ── Title bar ──────────────────────────────────────────────────────────
-    m_window.draw(m_titleText);
-
-    // ── Hint bar at the bottom ─────────────────────────────────────────────
-    m_window.draw(m_hintText);
-
-    // ── The 4×4 tile grid ──────────────────────────────────────────────────
-    m_grid.draw(m_window, m_totalTime);
-
-    // ── HUD: score, level, current word, timed message ────────────────────
-    m_window.draw(m_scoreText);
-    m_window.draw(m_levelText);
-    m_window.draw(m_wordText);
-    if (m_messageTimer > 0.f)
-        m_window.draw(m_messageText);
-
-    // ── State-specific overlays ────────────────────────────────────────────
-    if (m_state == GameState::GameOver)
-        drawOverlay("GAME OVER",
-                    "Score: " + std::to_string(m_player.getScore()) +
-                    "   |   Press R to restart");
-    else if (m_state == GameState::Paused)
-        drawOverlay("PAUSED", "Press ESC to resume   |   R to restart");
+    switch (m_state) {
+        case GameState::Menu:
+            renderMenu();
+            break;
+        case GameState::Playing:
+            renderGame();
+            break;
+        case GameState::Paused:
+            renderGame();
+            renderPauseOverlay();
+            break;
+        case GameState::GameOver:
+            renderGame();
+            renderGameOverOverlay();
+            break;
+    }
 
     m_window.display();
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  onMousePressed(pos)
-//  Forwards the click position to Grid when the game is in Playing state.
-// ════════════════════════════════════════════════════════════════════════════
-void GameEngine::onMousePressed(sf::Vector2f pos) {
-    if (m_state != GameState::Playing) return;
-    m_grid.onMousePressed(pos);
+// ============================================================
+//  renderMenu()
+// ============================================================
+void GameEngine::renderMenu() {
+    m_window.draw(m_titleText);
+
+    sf::Text sub(m_font, "A Word Puzzle Adventure", 20u);
+    sub.setFillColor(sf::Color(200, 170, 110));
+    {
+        sf::FloatRect b = sub.getLocalBounds();
+        sub.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
+        sub.setPosition({ WIN_W / 2.f, 175.f });
+    }
+    m_window.draw(sub);
+
+    sf::RectangleShape line({ 280.f, 2.f });
+    line.setFillColor(sf::Color(150, 110, 50));
+    line.setPosition({ WIN_W / 2.f - 140.f, 210.f });
+    m_window.draw(line);
+
+    sf::Text howto(m_font,
+        "Click adjacent tiles to spell words.\n"
+        "Submit with ENTER or the Submit button.\n"
+        "Burning tiles explode after 3 words -\n"
+        "use them in a word before time runs out!",
+        14u);
+    howto.setFillColor(sf::Color(175, 155, 115));
+    howto.setLineSpacing(1.4f);
+    {
+        sf::FloatRect b = howto.getLocalBounds();
+        howto.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
+        howto.setPosition({ WIN_W / 2.f, 225.f });
+    }
+    m_window.draw(howto);
+
+    m_btnPlay    .draw(m_window);
+    m_btnMenuExit.draw(m_window);
+
+    sf::Text footer(m_font, "Longer words earn more points!", 12u);
+    footer.setFillColor(sf::Color(110, 90, 60));
+    {
+        sf::FloatRect b = footer.getLocalBounds();
+        footer.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
+        footer.setPosition({ WIN_W / 2.f,
+                              static_cast<float>(WIN_H) - 26.f });
+    }
+    m_window.draw(footer);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-//  onKeyPressed(key)
-// ════════════════════════════════════════════════════════════════════════════
-void GameEngine::onKeyPressed(sf::Keyboard::Key key) {
-    switch (key) {
+// ============================================================
+//  renderGame()
+// ============================================================
+void GameEngine::renderGame() {
+    m_grid.draw(m_window, m_totalTime);
+    drawSidebar();              // draws the dark panel first
 
-    // ── ENTER: submit current selection ───────────────────────────────────
-    case sf::Keyboard::Key::Enter:
-        if (m_state == GameState::Playing)
-            trySubmitWord();
-        break;
+    // Draw title ON TOP of the panel
+    sf::Text topLabel(m_font, "BOOKWORM", 22u);
+    topLabel.setFillColor(sf::Color(255, 200, 50));
+    topLabel.setStyle(sf::Text::Bold);
+    topLabel.setPosition({ 10.f, 5.f });
+    m_window.draw(topLabel); 
 
-    // ── BACKSPACE: clear the whole selection ──────────────────────────────
-    case sf::Keyboard::Key::Backspace:
-        if (m_state == GameState::Playing)
-            m_grid.clearSelection();
-        break;
+    m_grid.draw(m_window, m_totalTime);
 
-    // ── ESC: toggle pause / resume ────────────────────────────────────────
-    case sf::Keyboard::Key::Escape:
-        if      (m_state == GameState::Playing) m_state = GameState::Paused;
-        else if (m_state == GameState::Paused)  m_state = GameState::Playing;
-        break;
+    drawSidebar();
 
-    // ── R: restart game ───────────────────────────────────────────────────
-    case sf::Keyboard::Key::R:
-        resetGame();
-        break;
+    m_window.draw(m_wordText);
 
-    default:
-        break;
+    m_btnSubmit .draw(m_window);
+    m_btnClear  .draw(m_window);
+    m_btnPause  .draw(m_window);
+    m_btnNewGame.draw(m_window);
+    m_btnExit   .draw(m_window);
+
+    if (m_messageTimer > 0.f)
+        m_window.draw(m_messageText);
+
+    if (m_noPossibleWord)
+        m_window.draw(m_warningText);
+}
+
+// ============================================================
+//  renderPauseOverlay()
+// ============================================================
+void GameEngine::renderPauseOverlay() {
+    drawOverlay("PAUSED", "Press ESC or click Resume to continue");
+
+    // Build a temporary button for the Resume click target.
+    // Position must exactly match the area checked in onMousePressed.
+    Button btnResume;
+    btnResume.init(m_font, "Resume",
+                   { WIN_W / 2.f - 85.f, WIN_H / 2.f + 55.f },
+                   { 170.f, 44.f }, 17u);
+
+    sf::Vector2i mp = sf::Mouse::getPosition(m_window);
+    btnResume.setHover(btnResume.contains({
+        static_cast<float>(mp.x), static_cast<float>(mp.y) }));
+    btnResume.draw(m_window);
+}
+
+// ============================================================
+//  renderGameOverOverlay()
+// ============================================================
+void GameEngine::renderGameOverOverlay() {
+    std::string sub =
+        "Final Score: " + std::to_string(m_player.getScore()) +
+        "   |   Level: "  + std::to_string(m_player.getLevel());
+    drawOverlay("GAME OVER", sub);
+
+    Button btnNG;
+    btnNG.init(m_font, "Play Again",
+               { WIN_W / 2.f - 85.f, WIN_H / 2.f + 65.f },
+               { 170.f, 44.f }, 17u);
+
+    sf::Vector2i mp = sf::Mouse::getPosition(m_window);
+    btnNG.setHover(btnNG.contains({
+        static_cast<float>(mp.x), static_cast<float>(mp.y) }));
+    btnNG.draw(m_window);
+}
+
+// ============================================================
+//  drawSidebar()
+//  Top HUD panel (y = 40..135) — Member C fills in the body
+// ============================================================
+void GameEngine::drawSidebar() {
+    sf::RectangleShape topPanel({ static_cast<float>(WIN_W), 88.f });  // fixed height
+    topPanel.setPosition({ 0.f, 30.f });
+    topPanel.setFillColor(sf::Color(50, 32, 15));
+    topPanel.setOutlineThickness(1.f);
+    topPanel.setOutlineColor(sf::Color(100, 70, 30));
+    m_window.draw(topPanel);
+
+    // --------------------------------------------------------
+    // MEMBER C: draw hearts, XP bar, score, level inside:
+    //   x: 0 .. 600     y: 40 .. 135
+    // --------------------------------------------------------
+    m_scoreText.setPosition({ 10.f, 42.f });
+    m_levelText.setPosition({ 10.f, 68.f });
+    m_window.draw(m_scoreText);
+    m_window.draw(m_levelText);
+}
+
+// ============================================================
+//  updateHUD()
+// ============================================================
+void GameEngine::updateHUD() {
+    m_scoreText.setString("Score: " + std::to_string(m_player.getScore()));
+    m_levelText.setString("Level: " + std::to_string(m_player.getLevel()));
+
+    std::string word = m_grid.getSelectedWord();
+    m_wordText.setString(word.empty() ? "..." : word);
+    {
+        sf::FloatRect wb = m_wordText.getLocalBounds();
+        m_wordText.setOrigin({ wb.position.x + wb.size.x / 2.f,
+                                wb.position.y + wb.size.y / 2.f });
+        m_wordText.setPosition({ WIN_W / 2.f, TOOLBAR_Y - 30.f });
     }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
+//  onMouseMoved()
+// ============================================================
+void GameEngine::onMouseMoved(sf::Vector2f pos) {
+    m_btnSubmit .setHover(m_btnSubmit .contains(pos));
+    m_btnClear  .setHover(m_btnClear  .contains(pos));
+    m_btnPause  .setHover(m_btnPause  .contains(pos));
+    m_btnNewGame.setHover(m_btnNewGame.contains(pos));
+    m_btnExit   .setHover(m_btnExit   .contains(pos));
+    m_btnPlay    .setHover(m_btnPlay    .contains(pos));
+    m_btnMenuExit.setHover(m_btnMenuExit.contains(pos));
+}
+
+// ============================================================
+//  onMousePressed()
+// ============================================================
+void GameEngine::onMousePressed(sf::Vector2f pos) {
+
+    if (m_state == GameState::Menu) {
+        if (m_btnPlay.contains(pos)) {
+            resetGame();
+            m_state = GameState::Playing;
+        }
+        if (m_btnMenuExit.contains(pos))
+            m_window.close();
+        return;
+    }
+
+    if (m_state == GameState::Paused) {
+        sf::FloatRect resumeArea(
+            { WIN_W / 2.f - 85.f, WIN_H / 2.f + 55.f }, { 170.f, 44.f });
+        if (resumeArea.contains(pos))
+            m_state = GameState::Playing;
+        return;
+    }
+
+    if (m_state == GameState::GameOver) {
+        sf::FloatRect ngArea(
+            { WIN_W / 2.f - 85.f, WIN_H / 2.f + 65.f }, { 170.f, 44.f });
+        if (ngArea.contains(pos)) {
+            resetGame();
+            m_state = GameState::Playing;
+        }
+        return;
+    }
+
+    // Playing: toolbar buttons first
+    if (m_btnSubmit .contains(pos)) { trySubmitWord();             return; }
+    if (m_btnClear  .contains(pos)) { m_grid.clearSelection();     return; }
+    if (m_btnPause  .contains(pos)) { m_state = GameState::Paused; return; }
+    if (m_btnNewGame.contains(pos)) { resetGame();                  return; }
+    if (m_btnExit.contains(pos)) { m_state = GameState::Menu; m_grid = Grid(m_font, {BOARD_X, BOARD_Y}); m_player.reset(); return; }
+
+    m_grid.onMousePressed(pos);
+}
+
+// ============================================================
+//  onKeyPressed()
+// ============================================================
+void GameEngine::onKeyPressed(sf::Keyboard::Key key) {
+    switch (key) {
+        case sf::Keyboard::Key::Enter:
+            if (m_state == GameState::Playing) trySubmitWord();
+            break;
+        case sf::Keyboard::Key::Backspace:
+            if (m_state == GameState::Playing) m_grid.clearSelection();
+            break;
+        case sf::Keyboard::Key::Escape:
+            if      (m_state == GameState::Playing) m_state = GameState::Paused;
+            else if (m_state == GameState::Paused)  m_state = GameState::Playing;
+            break;
+        case sf::Keyboard::Key::R:
+            resetGame();
+            m_state = GameState::Playing;
+            break;
+        default:
+            break;
+    }
+}
+
+// ============================================================
 //  trySubmitWord()
-//
-//  Flow:
-//    1. Get the word string from Grid
-//    2. Ask Dictionary if it is valid
-//    3a. Valid   → ask Player to score it, remove tiles from Grid, show feedback
-//    3b. Invalid → show "Not a word!" and clear the selection
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
 void GameEngine::trySubmitWord() {
     std::string word = m_grid.getSelectedWord();
     if (word.empty()) return;
@@ -217,19 +439,28 @@ void GameEngine::trySubmitWord() {
         for (const Tile* t : m_grid.getSelectedTiles())
             tileSum += Tile::letterValue(t->getLetter());
 
+        // Save level BEFORE adding the word so we can detect a level-up
+        int prevLevel = m_player.getLevel();
+
         // Score via Player, then remove tiles from the board
         int pts = m_player.calculateWordScore(word, tileSum);
         m_player.addWord(word, tileSum);
         int currentLevel = m_player.getLevel();
         m_grid.removeSelectedTiles(currentLevel);
 
-        // Pick a praise message based on the score earned
-        std::string msg;
-        if      (pts >= 300) msg = "OUTSTANDING! +" + std::to_string(pts);
-        else if (pts >= 150) msg = "Excellent!  +"  + std::to_string(pts);
-        else if (pts >= 60)  msg = "Nice word!  +"  + std::to_string(pts);
-        else                 msg = "+"               + std::to_string(pts);
-        showMessage(msg, 1.6f);
+        // Level-up event: spawn 1 burning tile
+        if (m_player.getLevel() > prevLevel) {
+            showMessage("LEVEL UP!  +" + std::to_string(pts), 2.2f);
+            m_grid.spawnBurningTile(1);   // only 1 tile on level-up
+        } else {
+            // Pick a praise message based on the score earned
+            std::string msg;
+            if      (pts >= 300) msg = "OUTSTANDING! +" + std::to_string(pts);
+            else if (pts >= 150) msg = "Excellent!  +"  + std::to_string(pts);
+            else if (pts >= 60)  msg = "Nice word!  +"  + std::to_string(pts);
+            else                 msg = "+"               + std::to_string(pts);
+            showMessage(msg, 1.6f);
+        }
 
         std::cout << "[Word] " << word << " => " << pts << " pts  "
                   << "(total: " << m_player.getScore() << ")\n";
@@ -239,20 +470,141 @@ void GameEngine::trySubmitWord() {
     }
 }
 
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
 //  resetGame()
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
 void GameEngine::resetGame() {
     m_player.reset();
-    m_grid  = Grid(m_font, {BOARD_X, BOARD_Y});
-    m_state = GameState::Playing;
-    showMessage("New game — good luck!", 2.f);
+    m_grid           = Grid(m_font, {BOARD_X, BOARD_Y});
+    m_totalTime      = 0.f;
+    m_noPossibleWord = false;
+    showMessage("Good luck!", 1.5f);
 }
 
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
+//  initButtons()
+// ============================================================
+void GameEngine::initButtons() {
+    // 5 toolbar buttons evenly spaced along the bottom
+    const float btnH = 44.f;
+    const float btnW = 108.f;
+    const float gap  =   6.f;
+    float       x    =  18.f;
+
+    m_btnSubmit .init(m_font, "Submit",   {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
+    m_btnClear  .init(m_font, "Clear",    {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
+    m_btnPause  .init(m_font, "Pause",    {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
+    m_btnNewGame.init(m_font, "New Game", {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
+    m_btnExit   .init(m_font, "Exit",     {x, TOOLBAR_Y}, {btnW, btnH});
+
+    // 2 menu screen buttons centred
+    const float mW = 220.f, mH = 52.f;
+    const float mX = WIN_W / 2.f - mW / 2.f;
+    m_btnPlay    .init(m_font, "Play Game", {mX, WIN_H / 2.f},        {mW, mH}, 20u);
+    m_btnMenuExit.init(m_font, "Exit",      {mX, WIN_H / 2.f + 68.f}, {mW, mH}, 20u);
+}
+
+// ============================================================
+//  initHUDText()  -  original method name kept
+// ============================================================
+void GameEngine::initHUDText() {
+    m_titleText = sf::Text(m_font, "BOOKWORM", 58u);
+    m_titleText.setFillColor(sf::Color(255, 200, 50));
+    m_titleText.setStyle(sf::Text::Bold);
+    {
+        sf::FloatRect b = m_titleText.getLocalBounds();
+        m_titleText.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
+        m_titleText.setPosition({ WIN_W / 2.f, 80.f });
+    }
+
+    m_scoreText = sf::Text(m_font, "Score: 0", 18u);
+    m_scoreText.setFillColor(sf::Color(255, 240, 180));
+
+    m_levelText = sf::Text(m_font, "Level: 1", 18u);
+    m_levelText.setFillColor(sf::Color(160, 255, 160));
+
+    m_wordText = sf::Text(m_font, "...", 26u);
+    m_wordText.setFillColor(sf::Color(255, 255, 255));
+    m_wordText.setStyle(sf::Text::Bold);
+
+    m_messageText = sf::Text(m_font, "", 24u);
+    m_messageText.setFillColor(sf::Color(255, 220, 50));
+    m_messageText.setStyle(sf::Text::Bold);
+
+    m_hintText = sf::Text(m_font,
+        "ENTER=submit  |  BACKSPACE=clear  |  ESC=pause  |  R=restart",
+        12u);
+    m_hintText.setFillColor(sf::Color(140, 115, 75));
+    {
+        sf::FloatRect b = m_hintText.getLocalBounds();
+        m_hintText.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
+        m_hintText.setPosition({ WIN_W / 2.f,
+                                   static_cast<float>(WIN_H) - 20.f });
+    }
+
+    m_warningText = sf::Text(m_font,
+        "WARNING: No possible word on the board!", 14u);
+    m_warningText.setFillColor(sf::Color(255, 70, 70));
+    {
+        sf::FloatRect b = m_warningText.getLocalBounds();
+        m_warningText.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
+        m_warningText.setPosition({ WIN_W / 2.f, WARNING_Y });
+    }
+}
+
+// ============================================================
+//  showMessage()
+// ============================================================
+void GameEngine::showMessage(const std::string& msg, float duration) {
+    m_messageText.setString(msg);
+    {
+        sf::FloatRect b = m_messageText.getLocalBounds();
+        m_messageText.setOrigin({ b.position.x + b.size.x / 2.f,
+                                   b.position.y + b.size.y / 2.f });
+        m_messageText.setPosition({ WIN_W / 2.f, BOARD_Y - 28.f });
+    }
+    sf::Color c = m_messageText.getFillColor();
+    c.a = 255;
+    m_messageText.setFillColor(c);
+    m_messageTimer = duration;
+}
+
+// ============================================================
+//  drawOverlay()
+// ============================================================
+void GameEngine::drawOverlay(const std::string& title,
+                              const std::string& subtitle)
+{
+    sf::RectangleShape dim({ static_cast<float>(WIN_W),
+                              static_cast<float>(WIN_H) });
+    dim.setFillColor(sf::Color(0, 0, 0, 175));
+    m_window.draw(dim);
+
+    sf::Text t(m_font, title, 56u);
+    t.setFillColor(sf::Color(255, 80, 80));
+    t.setStyle(sf::Text::Bold);
+    {
+        sf::FloatRect b = t.getLocalBounds();
+        t.setOrigin({ b.position.x + b.size.x / 2.f,
+                      b.position.y + b.size.y / 2.f });
+        t.setPosition({ WIN_W / 2.f, WIN_H / 2.f - 55.f });
+    }
+    m_window.draw(t);
+
+    sf::Text s(m_font, subtitle, 19u);
+    s.setFillColor(sf::Color(220, 220, 220));
+    {
+        sf::FloatRect b = s.getLocalBounds();
+        s.setOrigin({ b.position.x + b.size.x / 2.f,
+                      b.position.y + b.size.y / 2.f });
+        s.setPosition({ WIN_W / 2.f, WIN_H / 2.f + 8.f });
+    }
+    m_window.draw(s);
+}
+
+// ============================================================
 //  loadFont()
-//  Tries several common paths so it works on Windows, Linux, and macOS.
-// ════════════════════════════════════════════════════════════════════════════
+// ============================================================
 bool GameEngine::loadFont() {
     const std::vector<std::string> candidates = {
         "assets/fonts/Roboto-Regular.ttf",
@@ -264,113 +616,11 @@ bool GameEngine::loadFont() {
         "C:/Windows/Fonts/segoeui.ttf",
         "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
         "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
     };
-    for (const auto& path : candidates)
-        if (m_font.openFromFile(path)) {
-            std::cout << "[Font] Loaded: " << path << "\n";
+    for (const auto& p : candidates)
+        if (m_font.openFromFile(p)) {
+            std::cout << "[Font] Loaded: " << p << "\n";
             return true;
         }
     return false;
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-//  initHUDText()  –  configure all persistent sf::Text objects
-// ════════════════════════════════════════════════════════════════════════════
-void GameEngine::initHUDText() {
-    // Title (top-centre)
-    m_titleText = sf::Text(m_font, "BOOKWORM", 40u);
-    m_titleText.setFillColor(sf::Color(255, 200, 50));
-    m_titleText.setStyle(sf::Text::Bold);
-    {
-        sf::FloatRect b = m_titleText.getLocalBounds();
-        m_titleText.setOrigin({b.position.x + b.size.x / 2.f, 0.f});
-        m_titleText.setPosition({WIN_W / 2.f, 10.f});
-    }
-
-    // Score (top-right)
-    m_scoreText = sf::Text(m_font, "Score: 0", 22u);
-    m_scoreText.setFillColor(sf::Color(255, 240, 180));
-    m_scoreText.setPosition({static_cast<float>(WIN_W) - 180.f, 10.f});
-
-    // Level (below score)
-    m_levelText = sf::Text(m_font, "Level: 1", 22u);
-    m_levelText.setFillColor(sf::Color(160, 255, 160));
-    m_levelText.setPosition({static_cast<float>(WIN_W) - 180.f, 38.f});
-
-    // Current word (bottom-centre, re-centred every frame)
-    m_wordText = sf::Text(m_font, "...", 30u);
-    m_wordText.setFillColor(sf::Color(255, 255, 255));
-    m_wordText.setStyle(sf::Text::Bold);
-
-    // Feedback message (mid-top, fades out)
-    m_messageText = sf::Text(m_font, "", 26u);
-    m_messageText.setFillColor(sf::Color(255, 220, 50));
-    m_messageText.setStyle(sf::Text::Bold);
-
-    // Hint bar (bottom of window)
-    m_hintText = sf::Text(m_font,
-        "Click tiles  |  ENTER=submit  |  BACKSPACE=clear  |  ESC=pause  |  R=restart",
-        12u);
-    m_hintText.setFillColor(sf::Color(160, 140, 110));
-    {
-        sf::FloatRect b = m_hintText.getLocalBounds();
-        m_hintText.setOrigin({b.position.x + b.size.x / 2.f, 0.f});
-        m_hintText.setPosition({WIN_W / 2.f,
-                                  static_cast<float>(WIN_H) - 22.f});
-    }
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-//  showMessage(msg, duration)
-// ════════════════════════════════════════════════════════════════════════════
-void GameEngine::showMessage(const std::string& msg, float duration) {
-    m_messageText.setString(msg);
-    sf::FloatRect b = m_messageText.getLocalBounds();
-    m_messageText.setOrigin({b.position.x + b.size.x / 2.f,
-                               b.position.y + b.size.y / 2.f});
-    m_messageText.setPosition({WIN_W / 2.f, BOARD_Y - 32.f});
-    sf::Color c = m_messageText.getFillColor();
-    c.a = 255;
-    m_messageText.setFillColor(c);
-    m_messageTimer = duration;
-}
-
-// ════════════════════════════════════════════════════════════════════════════
-//  drawOverlay(title, subtitle)
-//  Semi-transparent black dim + centred title/subtitle text.
-// ════════════════════════════════════════════════════════════════════════════
-void GameEngine::drawOverlay(const std::string& title,
-                              const std::string& subtitle)
-{
-    // Dim the whole screen
-    sf::RectangleShape dim({static_cast<float>(WIN_W),
-                             static_cast<float>(WIN_H)});
-    dim.setFillColor(sf::Color(0, 0, 0, 170));
-    m_window.draw(dim);
-
-    // Big title
-    sf::Text t(m_font, title, 52u);
-    t.setFillColor(sf::Color(255, 80, 80));
-    t.setStyle(sf::Text::Bold);
-    {
-        sf::FloatRect b = t.getLocalBounds();
-        t.setOrigin({b.position.x + b.size.x / 2.f,
-                     b.position.y + b.size.y / 2.f});
-        t.setPosition({WIN_W / 2.f,
-                        static_cast<float>(WIN_H) / 2.f - 40.f});
-    }
-    m_window.draw(t);
-
-    // Subtitle
-    sf::Text s(m_font, subtitle, 22u);
-    s.setFillColor(sf::Color(220, 220, 220));
-    {
-        sf::FloatRect b = s.getLocalBounds();
-        s.setOrigin({b.position.x + b.size.x / 2.f,
-                     b.position.y + b.size.y / 2.f});
-        s.setPosition({WIN_W / 2.f,
-                        static_cast<float>(WIN_H) / 2.f + 20.f});
-    }
-    m_window.draw(s);
 }

@@ -49,6 +49,8 @@ public:
     // -- Static utility ---------------------------------------
     static int letterValue(char c); // Scrabble-style point value
 
+    static constexpr int MAX_BURN_STEPS = 3; // How many turns until it "explodes"
+
     // for burning tiles
     void tickBurn();       // Call this when a word is submitted
     void resetBurnTimer(); // Call this if the tile is cleared
@@ -72,7 +74,6 @@ private:
 
     //   for burning tiles
     int m_burnCounter = 0;
-    static constexpr int MAX_BURN_STEPS = 3; // How many turns until it "explodes"
 
     void updateColors();
 };

@@ -1,14 +1,15 @@
 #pragma once
 #include "Tile.h"
+#include "Dictionary.h"  
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <string>
 
 // ============================================================
-//  Grid  –  the 4×4 board of Tile objects
+//  Grid  –  the 8×8 board of Tile objects
 //
 //  Knows:
-//    • All 16 Tiles stored in a 2-D vector [col][row]
+//    • All 64 Tiles stored in a 2-D vector [col][row]
 //    • Which tiles the player has selected (and in what order)
 //    • Board pixel origin and tile sizing
 //
@@ -50,12 +51,18 @@ public:
     void spawnBurningTile(int count = 1);       // Force-turns random tiles to Burning
     bool hasExploded() const;
 
+    // ── Possible word check (Member B) ───────────────────────
+    // Scans the entire board with DFS to find any valid word.
+    // Called every frame in GameEngine::update().
+    // Returns false when no valid word path exists on the board.
+    bool hasPossibleWord(const Dictionary& dict) const;
+
 private:
     std::vector<std::vector<Tile>> m_tiles; // [col][row]
     std::vector<Tile *> m_selected;         // selection order matters
 
     const sf::Font *m_font = nullptr;
-    sf::Vector2f m_origin;
+    sf::Vector2f m_origin = {0.f, 0.f};
 
     // ── Private helpers ──────────────────────────────────────
     static char randomLetter();
@@ -64,4 +71,10 @@ private:
     bool isAlreadySelected(const Tile *t) const;
     bool isAdjacent(const Tile *a, const Tile *b) const;
     
+    // ── DFS helper
+    void dfsWord(int col, int row,
+                 std::string& current,
+                 std::vector<std::vector<bool>>& visited,
+                 const Dictionary& dict,
+                 bool& found) const;
 };

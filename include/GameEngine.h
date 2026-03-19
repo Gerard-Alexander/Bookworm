@@ -3,44 +3,49 @@
 #include "Dictionary.h"
 #include "Player.h"
 #include <SFML/Graphics.hpp>
+#include <optional>
 #include <string>
+#include <vector>
 
 // ============================================================
-//  GameState  –  top-level states of the game
+//  GameState
 // ============================================================
 enum class GameState {
-    Playing,    // normal gameplay
-    Paused,     // ESC pressed
-    GameOver    // burn tile reached the top (future feature hook)
+    Menu,
+    Playing,
+    Paused,
+    GameOver
 };
 
 // ============================================================
-//  GameEngine  –  top-level orchestrator
+//  Button  -  reusable clickable UI element
 //
-//  Owns every subsystem and wires them together:
-//
-//    ┌─────────────┐  mouse click   ┌──────┐
-//    │ GameEngine  │──────────────▶ │ Grid │
-//    │             │ ◀─selectedWord─│      │
-//    │             │                └──────┘
-//    │             │  isValid(word) ┌────────────┐
-//    │             │──────────────▶ │ Dictionary │
-//    │             │                └────────────┘
-//    │             │  addWord(...)  ┌────────┐
-//    │             │──────────────▶ │ Player │
-//    │             │                └────────┘
-//    └─────────────┘
-//
-//  Main game loop (called from run()):
-//    1. processEvents()  – poll SFML events, dispatch to handlers
-//    2. update(dt)       – advance timers, sync HUD text
-//    3. render()         – clear → draw Grid, HUD, overlays → display
+//  SFML 3 has no default constructor for sf::Text, so
+//  label is stored as std::optional<sf::Text> — same fix
+//  we used for Tile.
+// ============================================================
+struct Button {
+    sf::RectangleShape       shape;
+    std::optional<sf::Text>  label;   // optional avoids default-ctor problem
+    bool                     hovered = false;
+
+    void init(const sf::Font& font,
+              const std::string& text,
+              sf::Vector2f pos,
+              sf::Vector2f size,
+              unsigned fontSize = 16u);
+
+    bool contains(sf::Vector2f point) const;
+    void setHover(bool h);
+    void draw(sf::RenderWindow& window) const;
+};
+
+// ============================================================
+//  GameEngine
 // ============================================================
 class GameEngine {
 public:
     GameEngine();
-
-    // Entry point – opens the window, blocks until it is closed
     void run();
 
 private:
@@ -53,7 +58,7 @@ private:
     Dictionary m_dictionary;
     Player     m_player;
 
-    // ── HUD text objects ─────────────────────────────────────
+    // ── HUD text (original) ──────────────────────────────────
     sf::Text m_scoreText;
     sf::Text m_levelText;
     sf::Text m_wordText;
@@ -61,24 +66,51 @@ private:
     sf::Text m_hintText;
     sf::Text m_titleText;
 
-    // ── State ────────────────────────────────────────────────
-    GameState m_state        = GameState::Playing;
-    float     m_messageTimer = 0.f;   // seconds left to show feedback
-    float     m_totalTime    = 0.f;   // for animations (burning pulse)
+    // ── HUD text (Member B added) ─────────────────────────────
+    sf::Text m_warningText;
+
+    // ── State (original) ─────────────────────────────────────
+    GameState m_state        = GameState::Menu;
+    float     m_messageTimer = 0.f;
+    float     m_totalTime    = 0.f;
+
+    // ── State (Member B added) ────────────────────────────────
+    bool m_noPossibleWord = false;
+
+    // ── Toolbar buttons ──────────────────────────────────────
+    Button m_btnSubmit;
+    Button m_btnClear;
+    Button m_btnPause;
+    Button m_btnNewGame;
+    Button m_btnExit;
+
+    // ── Menu buttons ─────────────────────────────────────────
+    Button m_btnPlay;
+    Button m_btnMenuExit;
 
     // ── Game-loop phases ─────────────────────────────────────
     void processEvents();
     void update(float dt);
     void render();
 
+    // ── Renderers ────────────────────────────────────────────
+    void renderMenu();
+    void renderGame();
+    void renderPauseOverlay();
+    void renderGameOverOverlay();
+
+    // ── Sidebar (Member C fills in body) ─────────────────────
+    void drawSidebar();
+
     // ── Event handlers ───────────────────────────────────────
     void onMousePressed(sf::Vector2f pos);
+    void onMouseMoved(sf::Vector2f pos);
     void onKeyPressed(sf::Keyboard::Key key);
 
     // ── Word submission ──────────────────────────────────────
     void trySubmitWord();
 
-    // ── Helpers ──────────────────────────────────────────────
+    // ── Helpers (original names kept) ────────────────────────
     void  resetGame();
     bool  loadFont();
     void  initHUDText();
@@ -86,9 +118,17 @@ private:
     void  drawOverlay(const std::string& title,
                       const std::string& subtitle);
 
-    // ── Layout constants ─────────────────────────────────────
+    // ── Helpers (Member B added) ─────────────────────────────
+    void  initButtons();
+    void  updateHUD();
+
+    // ── Layout constants (original — kept exactly) ────────────
     static constexpr unsigned WIN_W   = 600u;
-    static constexpr unsigned WIN_H   = 800u;
+    static constexpr unsigned WIN_H   = 780u;
     static constexpr float    BOARD_X = 42.f;
-    static constexpr float    BOARD_Y = 140.f;
+    static constexpr float    BOARD_Y = 125.f;
+
+    // ── Layout constants (Member B added) ────────────────────
+    static constexpr float TOOLBAR_Y = static_cast<float>(WIN_H) - 55.f;
+    static constexpr float WARNING_Y = static_cast<float>(WIN_H) - 100.f;
 };
