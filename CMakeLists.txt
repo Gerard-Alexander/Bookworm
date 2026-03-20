@@ -16,7 +16,7 @@ FetchContent_Declare(
     GIT_SHALLOW    TRUE
 )
 # We only need Graphics, Window, and System
-set(SFML_BUILD_AUDIO   OFF CACHE BOOL "" FORCE)
+set(SFML_BUILD_AUDIO   ON CACHE BOOL "" FORCE)
 set(SFML_BUILD_NETWORK OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(SFML)
 
@@ -40,6 +40,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
     SFML::Graphics
     SFML::Window
     SFML::System
+    SFML::Audio
 )
 
 # ─── Copy assets folder next to the executable ────────────────────────────────

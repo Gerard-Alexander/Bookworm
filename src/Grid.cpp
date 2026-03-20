@@ -33,31 +33,29 @@ Grid::Grid(const sf::Font &font, sf::Vector2f origin)
 // ------------------------------------------------------------------------------
 //  onMousePressed
 // ------------------------------------------------------------------------------
-void Grid::onMousePressed(sf::Vector2f pos)
+bool Grid::onMousePressed(sf::Vector2f pos)
 {
-    for (int c = 0; c < m_tiles.size(); ++c)
-    {
-        for (int r = 0; r < m_tiles[c].size(); ++r)
-        {
+    for (int c = 0; c < m_tiles.size(); ++c) {
+        for (int r = 0; r < m_tiles[c].size(); ++r) {
             Tile &t = m_tiles[c][r];
             if (!t.contains(pos)) continue;
 
-            if (!m_selected.empty() && m_selected.back() == &t)
-            {
+            if (!m_selected.empty() && m_selected.back() == &t) {
                 t.setState(TileState::Normal);
                 m_selected.pop_back();
-                return;
+                return true; // tile interaction happened
             }
             if (!m_selected.empty() && !isAdjacent(m_selected.back(), &t))
-                return;
+                return false;
             if (isAlreadySelected(&t))
-                return;
+                return false;
 
             t.setState(TileState::Selected);
             m_selected.push_back(&t);
-            return;
+            return true; // tile successfully selected
         }
     }
+    return false; // no tile clicked
 }
 
 // ------------------------------------------------------------------------------

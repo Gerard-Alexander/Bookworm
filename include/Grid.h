@@ -4,7 +4,6 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 #include <string>
-
 // ============================================================
 //  Grid  –  the 8×8 board of Tile objects
 //
@@ -30,12 +29,12 @@ public:
     static constexpr float TILE_GAP = 4.f;
     int  getBurnCount() const;
     bool burnTileReachedBottom() const;
-
+    
     // ── Construction ─────────────────────────────────────────
     Grid(const sf::Font &font, sf::Vector2f origin);
 
     // ── Mouse events ─────────────────────────────────────────
-    void onMousePressed(sf::Vector2f pos);
+    bool onMousePressed(sf::Vector2f pos);
     void clearExplodedTiles();
     // ── Word helpers ─────────────────────────────────────────
     std::string getSelectedWord() const;
@@ -62,6 +61,8 @@ public:
 private:
     std::vector<std::vector<Tile>> m_tiles; // [col][row]
     std::vector<Tile *> m_selected;         // selection order matters
+
+  
 
     const sf::Font *m_font = nullptr;
     sf::Vector2f m_origin = {0.f, 0.f};

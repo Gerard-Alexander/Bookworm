@@ -6,7 +6,7 @@
 #include <optional>
 #include <string>
 #include <vector>
-
+#include <SFML/Audio.hpp>
 // ============================================================
 //  GameState
 // ============================================================
@@ -14,7 +14,8 @@ enum class GameState {
     Menu,
     Playing,
     Paused,
-    GameOver
+    GameOver,
+    Help 
 };
 
 // ============================================================
@@ -66,6 +67,11 @@ private:
     sf::Text m_hintText;
     sf::Text m_titleText;
 
+    sf::Music m_backgroundMusic;
+    sf::SoundBuffer m_clickBuffer;
+    std::optional<sf::Sound> m_clickSound;
+    sf::SoundBuffer m_damageBuffer;
+    std::optional<sf::Sound> m_damageSound;
     // ── HUD text (Member B added) ─────────────────────────────
     sf::Text m_warningText;
 
@@ -82,6 +88,7 @@ private:
     Button m_btnClear;
     Button m_btnPause;
     Button m_btnNewGame;
+    Button m_btnHelp;
     Button m_btnExit;
 
     // ── Menu buttons ─────────────────────────────────────────
@@ -106,7 +113,8 @@ private:
     void onMousePressed(sf::Vector2f pos);
     void onMouseMoved(sf::Vector2f pos);
     void onKeyPressed(sf::Keyboard::Key key);
-
+    void playClickSound();
+    void renderHelp();
     // ── Word submission ──────────────────────────────────────
     void trySubmitWord();
 

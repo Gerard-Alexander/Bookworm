@@ -92,6 +92,27 @@ void GameEngine::run() {
     }
     std::cout << "[Dictionary] " << m_dictionary.size() << " words loaded.\n";
 
+    if (!m_backgroundMusic.openFromFile("assets/music/Sakura-Girl-Cat-Walk-chosic.mp3")) {
+        std::cerr << "[Audio] ERROR: Could not load background music.\n";
+    } else {
+        m_backgroundMusic.setLooping(true);    
+        m_backgroundMusic.setVolume(30.f); // 0–100
+        m_backgroundMusic.play();
+    }
+
+    if (!m_clickBuffer.loadFromFile("assets/sfx/spinopel-ceramic-tile-411505.mp3")) {
+        std::cerr << "[Audio] ERROR: Could not load click sound.\n";
+    } else {
+        m_clickSound.emplace(m_clickBuffer);   
+        m_clickSound->setVolume (30.f);          
+    }
+
+    if (!m_damageBuffer.loadFromFile("assets/sfx/kodasworld.mp3")) {
+        std::cerr << "[Audio] ERROR: Could not load damage sound.\n";
+    } else {
+        m_damageSound.emplace(m_damageBuffer);
+        m_damageSound->setVolume(80.f); // adjust volume as needed
+    }
     initHUDText();
     initButtons();
 
@@ -104,6 +125,7 @@ void GameEngine::run() {
         update(dt);
         render();
     }
+    
 }
 
 // ============================================================
@@ -154,7 +176,10 @@ void GameEngine::update(float dt) {
         showMessage("A burning tile exploded! -1 life", 2.0f);
     
         m_grid.clearExplodedTiles();  // remove detonated tiles
-    
+        
+        if (m_damageSound.has_value()) {
+            m_damageSound->play();   // <-- play damage SFX here
+        }
         if (!m_player.isAlive()) {
             m_state = GameState::GameOver;
             return;
@@ -188,6 +213,8 @@ void GameEngine::render() {
             renderGame();
             renderGameOverOverlay();
             break;
+        case GameState::Help:    
+        renderHelp(); break;
     }
 
     m_window.display();
@@ -197,6 +224,7 @@ void GameEngine::render() {
 //  renderMenu()
 // ============================================================
 void GameEngine::renderMenu() {
+    m_btnHelp.draw(m_window);
     m_window.draw(m_titleText);
 
     sf::Text sub(m_font, "A Word Puzzle Adventure", 20u);
@@ -246,6 +274,7 @@ void GameEngine::renderMenu() {
 //  renderGame()
 // ============================================================
 void GameEngine::renderGame() {
+    
     m_grid.draw(m_window, m_totalTime);
     drawSidebar();              // draws the dark panel first
 
@@ -273,6 +302,8 @@ void GameEngine::renderGame() {
 
     if (m_noPossibleWord)
         m_window.draw(m_warningText);
+    
+    m_btnHelp.draw(m_window);
 }
 
 // ============================================================
@@ -312,6 +343,11 @@ void GameEngine::renderGameOverOverlay() {
     btnNG.setHover(btnNG.contains({
         static_cast<float>(mp.x), static_cast<float>(mp.y) }));
     btnNG.draw(m_window);
+}
+void GameEngine::playClickSound() {
+    if (m_clickSound.has_value()) {
+        m_clickSound->play();
+    }
 }
 
 // ============================================================
@@ -391,6 +427,7 @@ void GameEngine::onMouseMoved(sf::Vector2f pos) {
     m_btnNewGame.setHover(m_btnNewGame.contains(pos));
     m_btnExit   .setHover(m_btnExit   .contains(pos));
     m_btnPlay    .setHover(m_btnPlay    .contains(pos));
+    m_btnHelp.setHover(m_btnHelp.contains(pos));
     m_btnMenuExit.setHover(m_btnMenuExit.contains(pos));
 }
 
@@ -398,7 +435,7 @@ void GameEngine::onMouseMoved(sf::Vector2f pos) {
 //  onMousePressed()
 // ============================================================
 void GameEngine::onMousePressed(sf::Vector2f pos) {
-
+    playClickSound();
     if (m_state == GameState::Menu) {
         if (m_btnPlay.contains(pos)) {
             resetGame();
@@ -414,6 +451,13 @@ void GameEngine::onMousePressed(sf::Vector2f pos) {
             { WIN_W / 2.f - 85.f, WIN_H / 2.f + 55.f }, { 170.f, 44.f });
         if (resumeArea.contains(pos))
             m_state = GameState::Playing;
+        return;
+    }
+    if (m_state == GameState::Help) {
+        sf::FloatRect backArea({WIN_W / 2.f - 85.f, WIN_H - 100.f}, {170.f, 44.f});
+        if (backArea.contains(pos)) {
+            m_state = GameState::Playing; // or Menu, depending on where you want to return
+        }
         return;
     }
 
@@ -433,6 +477,10 @@ void GameEngine::onMousePressed(sf::Vector2f pos) {
     if (m_btnPause  .contains(pos)) { m_state = GameState::Paused; return; }
     if (m_btnNewGame.contains(pos)) { resetGame();                  return; }
     if (m_btnExit.contains(pos)) { m_state = GameState::Menu; m_grid = Grid(m_font, {BOARD_X, BOARD_Y}); m_player.reset(); return; }
+    if (m_btnHelp.contains(pos)) {
+        m_state = GameState::Help;
+        return;
+    }
 
     m_grid.onMousePressed(pos);
 }
@@ -459,6 +507,44 @@ void GameEngine::onKeyPressed(sf::Keyboard::Key key) {
         default:
             break;
     }
+}
+void GameEngine::renderHelp() {
+
+    sf::Text title(m_font, "HOW TO PLAY", 36u);
+    title.setFillColor(sf::Color(255, 80, 80)); // red
+    title.setStyle(sf::Text::Bold);
+    {
+        sf::FloatRect tb = title.getLocalBounds();
+        title.setOrigin({ tb.position.x + tb.size.x / 2.f,
+                          tb.position.y + tb.size.y / 2.f });
+        title.setPosition({ WIN_W / 2.f, 120.f }); // place near top
+    }
+    m_window.draw(title);
+
+    sf::Text instructions(m_font,
+        "Click adjacent tiles to spell words.\n"
+        "Press ENTER or Submit to confirm.\n"
+        "Burning tiles must be used before they explode!\n"
+        "Longer words earn more points.\n"
+        "Lives are lost when burning tiles explode.\n"
+        "Level up by finding enough words.",
+        16u);
+
+    instructions.setFillColor(sf::Color(220, 220, 220));
+    instructions.setLineSpacing(1.4f);
+    {
+        sf::FloatRect b = instructions.getLocalBounds();
+        instructions.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
+        instructions.setPosition({ WIN_W / 2.f, 200.f });
+    }
+    m_window.draw(instructions);
+
+    // Add a "Back" button
+    Button btnBack;
+    btnBack.init(m_font, "Back", {WIN_W / 2.f - 85.f, WIN_H - 100.f}, {170.f, 44.f}, 18u);
+    sf::Vector2i mp = sf::Mouse::getPosition(m_window);
+    btnBack.setHover(btnBack.contains({static_cast<float>(mp.x), static_cast<float>(mp.y)}));
+    btnBack.draw(m_window);
 }
 
 // ============================================================
@@ -530,6 +616,7 @@ void GameEngine::initButtons() {
     m_btnClear  .init(m_font, "Clear",    {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
     m_btnPause  .init(m_font, "Pause",    {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
     m_btnNewGame.init(m_font, "New Game", {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
+    m_btnHelp.init(m_font, "?", {WIN_W - 50.f, 10.f}, {40.f, 40.f}, 22u);
     m_btnExit   .init(m_font, "Exit",     {x, TOOLBAR_Y}, {btnW, btnH});
 
     // 2 menu screen buttons centred
@@ -587,6 +674,7 @@ void GameEngine::initHUDText() {
     }
 }
 
+
 // ============================================================
 //  showMessage()
 // ============================================================
@@ -613,7 +701,6 @@ void GameEngine::drawOverlay(const std::string& title,
     sf::RectangleShape dim({ static_cast<float>(WIN_W),
                               static_cast<float>(WIN_H) });
     dim.setFillColor(sf::Color(0, 0, 0, 175));
-    m_window.draw(dim);
 
     sf::Text t(m_font, title, 56u);
     t.setFillColor(sf::Color(255, 80, 80));
