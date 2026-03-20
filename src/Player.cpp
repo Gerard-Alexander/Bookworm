@@ -48,6 +48,20 @@ void Player::checkLevelUp() {
         m_wordsThisLevel = 0;
     }
 }
+// ────────────────────────────────────────────────────────────
+//  addXP
+// ────────────────────────────────────────────────────────────
+void Player::addXP(int amount) {
+    m_xp += amount;
+    checkLevelUp();
+}
+
+// ────────────────────────────────────────────────────────────
+//  loseLife
+// ────────────────────────────────────────────────────────────
+void Player::loseLife() {
+    if (m_lives > 0) --m_lives;
+}
 
 // ────────────────────────────────────────────────────────────────────────────
 //  reset  –  start a fresh game
@@ -57,4 +71,6 @@ void Player::reset() {
     m_level          = 1;
     m_wordsThisLevel = 0;
     m_wordHistory.clear();
+    m_lives          = 5;   // e.g. 3
+    m_xp             = 0;
 }

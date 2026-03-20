@@ -28,13 +28,15 @@ public:
     static constexpr int ROWS = 8;
     static constexpr float TILE_SIZE = 60.f;
     static constexpr float TILE_GAP = 4.f;
+    int  getBurnCount() const;
+    bool burnTileReachedBottom() const;
 
     // ── Construction ─────────────────────────────────────────
     Grid(const sf::Font &font, sf::Vector2f origin);
 
     // ── Mouse events ─────────────────────────────────────────
     void onMousePressed(sf::Vector2f pos);
-
+    void clearExplodedTiles();
     // ── Word helpers ─────────────────────────────────────────
     std::string getSelectedWord() const;
     void clearSelection();
@@ -78,3 +80,4 @@ private:
                  const Dictionary& dict,
                  bool& found) const;
 };
+

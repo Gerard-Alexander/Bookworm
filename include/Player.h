@@ -23,6 +23,13 @@
 //          = wordLen × 50  (only for words >= 8 letters)
 //    total = (base + bonus) × level
 // ============================================================
+#pragma once
+#include <string>
+#include <vector>
+
+// ============================================================
+//  Player  –  score-keeping and progression
+// ============================================================
 class Player {
 public:
     Player() = default;
@@ -35,11 +42,17 @@ public:
     // ── Getters ──────────────────────────────────────────────
     int                             getScore()       const { return m_score;       }
     int                             getLevel()       const { return m_level;       }
+    int                             getLives()       const { return m_lives;       }
+    int                             getXP()          const { return m_xp;          }
+    int                             getXPToNextLevel() const { return m_xpToNextLevel; }
+    bool                            isAlive()        const { return m_lives > 0;   }
     const std::string&              getName()        const { return m_name;        }
     const std::vector<std::string>& getWordHistory() const { return m_wordHistory; }
 
     // ── Progression ──────────────────────────────────────────
-    void checkLevelUp();   // called internally after each word
+    void checkLevelUp();
+    void addXP(int amount);
+    void loseLife();
 
     // ── Reset ────────────────────────────────────────────────
     void reset();
@@ -50,6 +63,11 @@ private:
     int                      m_level           = 1;
     int                      m_wordsThisLevel  = 0;
     std::vector<std::string> m_wordHistory;
+
+    // New fields
+    int m_lives = 5;
+    int m_xp = 0;
+    int m_xpToNextLevel = 100;
 
     static constexpr int WORDS_PER_LEVEL = 5;
 };

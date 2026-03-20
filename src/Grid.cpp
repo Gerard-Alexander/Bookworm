@@ -21,7 +21,7 @@ Grid::Grid(const sf::Font &font, sf::Vector2f origin)
     std::srand(static_cast<unsigned>(std::time(nullptr)));
 
     m_tiles.resize(Grid::COLS);
-    for (int c = 0; c < Grid::COLS; ++c)
+    for (int c = 0; c < m_tiles.size(); ++c)
     {
         m_tiles[c].reserve(Grid::ROWS);
         for (int r = 0; r < Grid::ROWS; ++r)
@@ -35,9 +35,9 @@ Grid::Grid(const sf::Font &font, sf::Vector2f origin)
 // ------------------------------------------------------------------------------
 void Grid::onMousePressed(sf::Vector2f pos)
 {
-    for (int c = 0; c < Grid::COLS; ++c)
+    for (int c = 0; c < m_tiles.size(); ++c)
     {
-        for (int r = 0; r < Grid::ROWS; ++r)
+        for (int r = 0; r < m_tiles[c].size(); ++r)
         {
             Tile &t = m_tiles[c][r];
             if (!t.contains(pos)) continue;
@@ -89,28 +89,27 @@ void Grid::removeSelectedTiles(int currentLevel)
     m_selected.clear();
 
     // 3. Refill affected columns
-    for (int c = 0; c < Grid::COLS; ++c) {
+    for (int c = 0; c < (int)m_tiles.size(); ++c) {
         bool columnHasSpace = false;
-        for (int r = 0; r < Grid::ROWS; ++r)
+        for (int r = 0; r < (int)m_tiles[c].size(); ++r)
             if (m_tiles[c][r].getLetter() == '\0') columnHasSpace = true;
         if (columnHasSpace) fillColumn(c, currentLevel);
     }
 
     // 4. Tick burn counters ONCE here for the whole board.
     //    Skip tiles that just spawned at MAX_BURN_STEPS (brand new burning tiles).
-    for (int c = 0; c < Grid::COLS; ++c) {
-        for (int r = 0; r < Grid::ROWS; ++r) {
-            if (m_tiles[c][r].isBurning() &&
-                m_tiles[c][r].getBurnCounter() == Tile::MAX_BURN_STEPS)
-                continue;   // newly spawned, skip this tick
-            m_tiles[c][r].tickBurn();
+    for (int c = 0; c <(int)m_tiles.size(); ++c) {
+        for (int r = 0; r < (int)m_tiles[c].size(); ++r) {
+            if (m_tiles[c][r].isBurning()) {
+                m_tiles[c][r].tickBurn();
+            }
         }
     }
 
     // 5. Random ignition - only from level 3+, max 2 burning tiles
     int burningCount = 0;
-    for (int c = 0; c < Grid::COLS; ++c)
-        for (int r = 0; r < Grid::ROWS; ++r)
+    for (int c = 0; c < (int)m_tiles.size(); ++c)
+        for (int r = 0; r < (int)m_tiles[c].size(); ++r)
             if (m_tiles[c][r].isBurning()) ++burningCount;
 
     if (burningCount < 2 && currentLevel > 2 && (std::rand() % 100) < 5) {
@@ -135,8 +134,8 @@ void Grid::draw(sf::RenderWindow &window, float totalTime) const
     bg.setOutlineColor(sf::Color(50, 30, 10));
     window.draw(bg);
 
-    for (int c = 0; c < Grid::COLS; ++c)
-        for (int r = 0; r < Grid::ROWS; ++r)
+    for (int c = 0; c < (int)m_tiles.size(); ++c)
+        for (int r = 0; r < (int)m_tiles[c].size(); ++r)
             m_tiles[c][r].draw(window, totalTime);
 }
 
@@ -167,7 +166,7 @@ void Grid::fillColumn(int col, int currentLevel)
 {
     // 1. Collect surviving tiles (not marked '\0')
     std::vector<Tile> survivors;
-    for (int r = 0; r < Grid::ROWS; ++r)
+    for (int r = 0; r < (int)m_tiles[col].size(); ++r)
         if (m_tiles[col][r].getLetter() != '\0')
             survivors.push_back(std::move(m_tiles[col][r]));
 
@@ -187,8 +186,8 @@ void Grid::fillColumn(int col, int currentLevel)
         if (currentLevel > 3 && r <= Grid::ROWS - 3)
         {
             int burningCount = 0;
-            for (int c = 0; c < Grid::COLS; ++c)
-                for (int rr = 0; rr < Grid::ROWS; ++rr)
+            for (int c = 0; c < m_tiles.size(); ++c)
+                for (int rr = 0; rr < m_tiles[c].size(); ++rr)
                     if (m_tiles[c][rr].isBurning()) ++burningCount;
 
             if (burningCount < 2 && (std::rand() % 100) < 8)
@@ -221,6 +220,12 @@ void Grid::fillColumn(int col, int currentLevel)
         m_tiles[col].back().setGridPos(col, newRow);
         m_tiles[col].back().setPosition(tilePixelPos(col, newRow));
     }
+    while ((int)m_tiles[col].size() < Grid::ROWS) {
+        int r = m_tiles[col].size();
+        m_tiles[col].emplace_back(randomLetter(), col, r,
+                                  *m_font, tilePixelPos(col, r), Grid::TILE_SIZE);
+    }
+    
 }
 
 // ------------------------------------------------------------------------------
@@ -230,14 +235,16 @@ void Grid::spawnBurningTile(int count) {
     for (int i = 0; i < count; ++i) {
         // Hard cap: never more than 2 burning tiles
         int burningCount = 0;
-        for (int c = 0; c < Grid::COLS; ++c)
-            for (int r = 0; r < Grid::ROWS; ++r)
+        for (int c = 0; c < (int)m_tiles.size(); ++c)
+            for (int r = 0; r < (int)m_tiles[c].size(); ++r)
                 if (m_tiles[c][r].isBurning()) ++burningCount;
         if (burningCount >= 2) return;
 
         for (int attempt = 0; attempt < 20; ++attempt) {
             int c = std::rand() % Grid::COLS;
-            int r = std::rand() % (Grid::ROWS - 2);   // rows 0-5 only
+            int r = std::rand() % Grid::ROWS;   // pick a row index
+
+            if (r >= (int)m_tiles[c].size()) continue;
 
             if (m_tiles[c][r].getState() != TileState::Normal) continue;
 
@@ -249,7 +256,7 @@ void Grid::spawnBurningTile(int count) {
                     if (dc == 0 && dr == 0) continue;
                     int nc = c + dc, nr = r + dr;
                     if (nc < 0 || nc >= Grid::COLS) continue;
-                    if (nr < 0 || nr >= Grid::ROWS) continue;
+                    if (nr < 0 || nr >= (int)m_tiles[nc].size()) continue;
                     char neighbour = m_tiles[nc][nr].getLetter();
                     if (vowels.find(neighbour) != std::string::npos)
                         hasVowelNeighbour = true;
@@ -276,19 +283,22 @@ bool Grid::isAdjacent(const Tile *a, const Tile *b) const
 }
 
 bool Grid::hasExploded() const {
-    for (int c = 0; c < Grid::COLS; ++c)
-        for (int r = 0; r < Grid::ROWS; ++r)
-            if (m_tiles[c][r].isBurning() && m_tiles[c][r].getBurnCounter() <= 0)
+    for (int c = 0; c < (int)m_tiles.size(); ++c) {
+        for (int r = 0; r < (int)m_tiles[c].size(); ++r) {
+            if (m_tiles[c][r].isBurning() &&
+                m_tiles[c][r].getBurnCounter() <= 0) {
                 return true;
+            }
+        }
+    }
     return false;
 }
-
 bool Grid::hasPossibleWord(const Dictionary& dict) const {
     std::vector<std::vector<bool>> visited(
         Grid::COLS, std::vector<bool>(Grid::ROWS, false));
     bool found = false;
     for (int c = 0; c < Grid::COLS && !found; ++c)
-        for (int r = 0; r < Grid::ROWS && !found; ++r) {
+        for (int r = 0; r <(int)m_tiles[c].size() && !found; ++r) {
             std::string current;
             dfsWord(c, r, current, visited, dict, found);
         }
@@ -328,3 +338,40 @@ void Grid::dfsWord(int col, int row,
     current.pop_back();
     visited[col][row] = false;
 }
+int Grid::getBurnCount() const {
+    int count = 0;
+    for (int c = 0; c < (int)m_tiles.size(); ++c) {
+        for (int r = 0; r < (int)m_tiles[c].size(); ++r) {
+            if (m_tiles[c][r].isBurning()) {
+                ++count;
+            }
+        }
+    }
+    return count;
+}
+void Grid::clearExplodedTiles() {
+    for (int c = 0; c < (int)m_tiles.size(); ++c) {
+        for (int r = 0; r < (int)m_tiles[c].size(); ++r) {
+            if (m_tiles[c][r].isBurning() &&
+                m_tiles[c][r].getBurnCounter() <= 0) {
+                // Replace with a fresh normal tile
+                m_tiles[c][r].setLetter(randomLetter());
+                m_tiles[c][r].setState(TileState::Normal);
+                m_tiles[c][r].resetBurnCounter();
+            }
+        }
+    }
+}
+
+bool Grid::burnTileReachedBottom() const {
+    for (int c = 0; c < (int)m_tiles.size(); ++c) {
+        for (int r = 0; r < (int)m_tiles[c].size(); ++r) {
+            if (m_tiles[c][r].isBurning() &&
+                m_tiles[c][r].getRow() == Grid::ROWS - 1) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+

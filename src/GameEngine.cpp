@@ -148,15 +148,22 @@ void GameEngine::update(float dt) {
 
     if (m_state != GameState::Playing) return;
 
-    // Game-over: any burning tile burnCounter reached 0
+    // Game-over checks
     if (m_grid.hasExploded()) {
-        m_state = GameState::GameOver;
-        return;
+        m_player.loseLife();
+        showMessage("A burning tile exploded! -1 life", 2.0f);
+    
+        m_grid.clearExplodedTiles();  // remove detonated tiles
+    
+        if (!m_player.isAlive()) {
+            m_state = GameState::GameOver;
+            return;
+        }
     }
-
     // DFS possible-word check
     m_noPossibleWord = !m_grid.hasPossibleWord(m_dictionary);
 
+    // Sync HUD
     updateHUD();
 }
 
@@ -312,23 +319,51 @@ void GameEngine::renderGameOverOverlay() {
 //  Top HUD panel (y = 40..135) — Member C fills in the body
 // ============================================================
 void GameEngine::drawSidebar() {
-    sf::RectangleShape topPanel({ static_cast<float>(WIN_W), 88.f });  // fixed height
+    sf::RectangleShape topPanel({ static_cast<float>(WIN_W), 88.f });
     topPanel.setPosition({ 0.f, 30.f });
     topPanel.setFillColor(sf::Color(50, 32, 15));
     topPanel.setOutlineThickness(1.f);
     topPanel.setOutlineColor(sf::Color(100, 70, 30));
     m_window.draw(topPanel);
 
-    // --------------------------------------------------------
-    // MEMBER C: draw hearts, XP bar, score, level inside:
-    //   x: 0 .. 600     y: 40 .. 135
-    // --------------------------------------------------------
+    // Score + Level
     m_scoreText.setPosition({ 10.f, 42.f });
     m_levelText.setPosition({ 10.f, 68.f });
     m_window.draw(m_scoreText);
     m_window.draw(m_levelText);
-}
 
+    // Lives (hearts)
+    for (int i = 0; i < m_player.getLives(); ++i) {
+        sf::CircleShape heart(8.f);
+        heart.setFillColor(sf::Color::Red);
+        heart.setPosition({ 200.f + i * 20.f, 45.f });
+        m_window.draw(heart);
+    }
+
+    // XP Bar
+    sf::RectangleShape xpBg({ 120.f, 12.f });
+    xpBg.setFillColor(sf::Color(80, 60, 40));
+    xpBg.setPosition({ 200.f, 70.f });
+    m_window.draw(xpBg);
+
+    float ratio = static_cast<float>(m_player.getXP()) / m_player.getXPToNextLevel();
+    sf::RectangleShape xpFill({ ratio * 120.f, 12.f });
+    xpFill.setFillColor(sf::Color(100, 200, 100));
+    xpFill.setPosition({ 200.f, 70.f });
+    m_window.draw(xpFill);
+
+    // Burn count
+    sf::Text burnText(m_font, "Burns: " + std::to_string(m_grid.getBurnCount()), 16u);
+    burnText.setFillColor(sf::Color(255, 120, 80));
+    burnText.setPosition({ 360.f, 55.f });
+    m_window.draw(burnText);
+
+    sf::Text burnCounterText(m_font,
+        "Burning Tiles: " + std::to_string(m_grid.getBurnCount()), 16u);
+    burnCounterText.setFillColor(sf::Color(255, 200, 100));
+    burnCounterText.setPosition({ 360.f, 75.f });
+    m_window.draw(burnCounterText);
+}
 // ============================================================
 //  updateHUD()
 // ============================================================
@@ -341,7 +376,7 @@ void GameEngine::updateHUD() {
     {
         sf::FloatRect wb = m_wordText.getLocalBounds();
         m_wordText.setOrigin({ wb.position.x + wb.size.x / 2.f,
-                                wb.position.y + wb.size.y / 2.f });
+                               wb.position.y + wb.size.y / 2.f });
         m_wordText.setPosition({ WIN_W / 2.f, TOOLBAR_Y - 30.f });
     }
 }

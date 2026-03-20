@@ -61,7 +61,7 @@ public:
     void setGridPos(int col, int row);
     void setPosition(sf::Vector2f pixelPos);
     void centerText();
-
+    void resetBurnCounter() { m_burnCounter = Tile::MAX_BURN_STEPS; }
 private:
     char m_letter = 'A';
     int m_col = 0;

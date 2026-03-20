@@ -25,7 +25,7 @@ enum class GameState {
 //  we used for Tile.
 // ============================================================
 struct Button {
-    sf::RectangleShape       shape;
+    sf::RectangleShape       shape;  
     std::optional<sf::Text>  label;   // optional avoids default-ctor problem
     bool                     hovered = false;
 
