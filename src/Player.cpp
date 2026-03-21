@@ -33,9 +33,12 @@ int Player::calculateWordScore(const std::string& word, int tileValueSum) const 
 //  addWord  –  awards points, records word, checks for level-up
 // ────────────────────────────────────────────────────────────────────────────
 void Player::addWord(const std::string& word, int tileValueSum) {
-    m_score += calculateWordScore(word, tileValueSum);
+    int pts = calculateWordScore(word, tileValueSum);
+    m_score += pts;
     m_wordHistory.push_back(word);
     ++m_wordsThisLevel;
+
+    addXP(pts);   // <-- award XP based on points
     checkLevelUp();
 }
 
@@ -43,11 +46,13 @@ void Player::addWord(const std::string& word, int tileValueSum) {
 //  checkLevelUp  –  advance level every WORDS_PER_LEVEL valid words
 // ────────────────────────────────────────────────────────────────────────────
 void Player::checkLevelUp() {
-    if (m_wordsThisLevel >= WORDS_PER_LEVEL) {
+    if (m_xp >= m_xpToNextLevel) {
+        m_xp -= m_xpToNextLevel;
         ++m_level;
         m_wordsThisLevel = 0;
     }
 }
+
 // ────────────────────────────────────────────────────────────
 //  addXP
 // ────────────────────────────────────────────────────────────
