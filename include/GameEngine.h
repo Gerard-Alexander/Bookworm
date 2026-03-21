@@ -79,10 +79,10 @@ private:
     GameState m_state        = GameState::Menu;
     float     m_messageTimer = 0.f;
     float     m_totalTime    = 0.f;
-
+    int m_highScore = 0;
     // ── State (Member B added) ────────────────────────────────
     bool m_noPossibleWord = false;
-
+    void saveHighScore();
     // ── Toolbar buttons ──────────────────────────────────────
     Button m_btnSubmit;
     Button m_btnClear;
@@ -117,7 +117,7 @@ private:
     void renderHelp();
     // ── Word submission ──────────────────────────────────────
     void trySubmitWord();
-
+    
     // ── Helpers (original names kept) ────────────────────────
     void  resetGame();
     bool  loadFont();

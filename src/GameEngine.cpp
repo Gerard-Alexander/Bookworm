@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <cmath>
 #include <algorithm>
+#include <fstream>
 
 // ============================================================
 //  Button  -  implementation
@@ -82,7 +83,11 @@ void GameEngine::run() {
                   << "  Place arial.ttf next to Bookworm.exe, or in assets/fonts/\n";
         return;
     }
-
+    std::ifstream hsFile("assets/highscore.txt");
+    if (hsFile.is_open()) {
+        hsFile >> m_highScore;
+        hsFile.close();
+    }
     // Rebuild everything that needs a real font
     m_grid = Grid(m_font, {BOARD_X, BOARD_Y});
 
@@ -107,7 +112,7 @@ void GameEngine::run() {
         m_clickSound->setVolume (30.f);          
     }
 
-    if (!m_damageBuffer.loadFromFile("assets/sfx/kodasworld.mp3")) {
+    if (!m_damageBuffer.loadFromFile("assets/sfx/Jewel.mp3")) {
         std::cerr << "[Audio] ERROR: Could not load damage sound.\n";
     } else {
         m_damageSound.emplace(m_damageBuffer);
@@ -172,26 +177,36 @@ void GameEngine::update(float dt) {
 
     // Game-over checks
     if (m_grid.hasExploded()) {
-        m_player.loseLife();
-        showMessage("A burning tile exploded! -1 life", 2.0f);
-    
-        m_grid.clearExplodedTiles();  // remove detonated tiles
-        
-        if (m_damageSound.has_value()) {
-            m_damageSound->play();   // <-- play damage SFX here
-        }
-        if (!m_player.isAlive()) {
-            m_state = GameState::GameOver;
-            return;
-        }
+    m_player.loseLife();
+    showMessage("A burning tile exploded! -1 life", 2.0f);
+    m_grid.clearExplodedTiles();
+
+    if (m_damageSound.has_value()) {
+        m_damageSound->play();
     }
+
+    if (!m_player.isAlive()) {
+        saveHighScore();   // <-- call here
+        m_state = GameState::GameOver;
+        return;
+    }
+}
     // DFS possible-word check
     m_noPossibleWord = !m_grid.hasPossibleWord(m_dictionary);
 
     // Sync HUD
     updateHUD();
 }
-
+void GameEngine::saveHighScore() {
+    if (m_player.getScore() > m_highScore) {
+        m_highScore = m_player.getScore();
+        std::ofstream hsFile("assets/highscore.txt");
+        if (hsFile.is_open()) {
+            hsFile << m_highScore;
+            hsFile.close();
+        }
+    }
+}
 // ============================================================
 //  render()
 // ============================================================
@@ -224,7 +239,6 @@ void GameEngine::render() {
 //  renderMenu()
 // ============================================================
 void GameEngine::renderMenu() {
-    m_btnHelp.draw(m_window);
     m_window.draw(m_titleText);
 
     sf::Text sub(m_font, "A Word Puzzle Adventure", 20u);
@@ -268,6 +282,15 @@ void GameEngine::renderMenu() {
                               static_cast<float>(WIN_H) - 26.f });
     }
     m_window.draw(footer);
+
+    sf::Text hsText(m_font, "High Score: " + std::to_string(m_highScore), 20u);
+hsText.setFillColor(sf::Color(255, 200, 100));
+{
+    sf::FloatRect b = hsText.getLocalBounds();
+    hsText.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
+    hsText.setPosition({ WIN_W / 2.f, 310.f });
+}
+m_window.draw(hsText);
 }
 
 // ============================================================
@@ -388,12 +411,6 @@ void GameEngine::drawSidebar() {
     xpFill.setPosition({ 200.f, 70.f });
     m_window.draw(xpFill);
 
-    // Burn count
-    sf::Text burnText(m_font, "Burns: " + std::to_string(m_grid.getBurnCount()), 16u);
-    burnText.setFillColor(sf::Color(255, 120, 80));
-    burnText.setPosition({ 360.f, 55.f });
-    m_window.draw(burnText);
-
     sf::Text burnCounterText(m_font,
         "Burning Tiles: " + std::to_string(m_grid.getBurnCount()), 16u);
     burnCounterText.setFillColor(sf::Color(255, 200, 100));
@@ -476,12 +493,14 @@ void GameEngine::onMousePressed(sf::Vector2f pos) {
     if (m_btnClear  .contains(pos)) { m_grid.clearSelection();     return; }
     if (m_btnPause  .contains(pos)) { m_state = GameState::Paused; return; }
     if (m_btnNewGame.contains(pos)) { resetGame();                  return; }
-    if (m_btnExit.contains(pos)) { m_state = GameState::Menu; m_grid = Grid(m_font, {BOARD_X, BOARD_Y}); m_player.reset(); return; }
-    if (m_btnHelp.contains(pos)) {
-        m_state = GameState::Help;
+    if (m_btnExit.contains(pos)) {
+        saveHighScore();      
+        m_state = GameState::Menu;
+        m_grid = Grid(m_font, {BOARD_X, BOARD_Y});
+        m_player.reset();
         return;
     }
-
+    
     m_grid.onMousePressed(pos);
 }
 
