@@ -69,8 +69,10 @@ GameEngine::GameEngine()
       m_messageText(m_font, "",          24u),
       m_hintText   (m_font, "",          13u),
       m_titleText  (m_font, "BOOKWORM",  50u),
+      m_highScoreText(m_font, "High Score: 0", 18u),
       m_warningText(m_font, "",          15u)
 {
+    
     m_window.setFramerateLimit(60);
 }
 
@@ -363,10 +365,12 @@ void GameEngine::drawSidebar() {
 
     // Score + Level
     m_scoreText.setPosition({ 10.f, 42.f });
-    m_levelText.setPosition({ 10.f, 68.f });
+m_highScoreText.setPosition({ 10.f, 62.f }); 
+m_levelText.setPosition({ 10.f, 82.f });    
     m_window.draw(m_scoreText);
+    m_window.draw(m_highScoreText);
     m_window.draw(m_levelText);
-
+    
     // Lives (hearts)
     for (int i = 0; i < m_player.getLives(); ++i) {
         sf::CircleShape heart(8.f);
@@ -376,21 +380,22 @@ void GameEngine::drawSidebar() {
     }
 
     // XP Bar
-    sf::RectangleShape xpBg({ 120.f, 12.f });
+    float barWidth = WIN_W * 0.25f; // 25% of screen width
+    sf::RectangleShape xpBg({ barWidth, 12.f });
     xpBg.setFillColor(sf::Color(80, 60, 40));
-    xpBg.setPosition({ 200.f, 70.f });
+    xpBg.setPosition({ 200.f, 90.f });
     m_window.draw(xpBg);
 
     float ratio = static_cast<float>(m_player.getXP()) / m_player.getXPToNextLevel();
-    sf::RectangleShape xpFill({ ratio * 120.f, 12.f });
+    sf::RectangleShape xpFill({ ratio * barWidth, 12.f });
     xpFill.setFillColor(sf::Color(100, 200, 100));
-    xpFill.setPosition({ 200.f, 70.f });
+    xpFill.setPosition({ 200.f, 90.f });
     m_window.draw(xpFill);
 
     sf::Text burnCounterText(m_font,
-        "Burning Tiles: " + std::to_string(m_grid.getBurnCount()), 16u);
+    "Burning Tiles: " + std::to_string(m_grid.getBurnCount()), 16u);
     burnCounterText.setFillColor(sf::Color(255, 200, 100));
-    burnCounterText.setPosition({ 360.f, 75.f });
+    burnCounterText.setPosition({ 200.f, 64.f });
     m_window.draw(burnCounterText);
 }
 // ============================================================
@@ -398,6 +403,7 @@ void GameEngine::drawSidebar() {
 // ============================================================
 void GameEngine::updateHUD() {
     m_scoreText.setString("Score: " + std::to_string(m_player.getScore()));
+    m_highScoreText.setString("High Score: " + std::to_string(m_highScore));
     m_levelText.setString("Level: " + std::to_string(m_player.getLevel()));
 
     std::string word = m_grid.getSelectedWord();
@@ -467,7 +473,10 @@ void GameEngine::onMousePressed(sf::Vector2f pos) {
         m_player.reset();
         return;
     }
-    
+    if (m_btnHelp.contains(pos)) {
+        m_state = GameState::Help;
+        return;
+    }
     m_grid.onMousePressed(pos);
 }
 
@@ -619,6 +628,9 @@ void GameEngine::initHUDText() {
         m_titleText.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
         m_titleText.setPosition({ WIN_W / 2.f, 80.f });
     }
+
+    m_highScoreText = sf::Text(m_font, "High Score: 0", 18u);
+    m_highScoreText.setFillColor(sf::Color(255, 240, 180));
 
     m_scoreText = sf::Text(m_font, "Score: 0", 18u);
     m_scoreText.setFillColor(sf::Color(255, 240, 180));
