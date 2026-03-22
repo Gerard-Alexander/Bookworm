@@ -135,9 +135,9 @@ private:
 
     // ── Layout constants (original — kept exactly) ────────────
     static constexpr unsigned WIN_W   = 600u;
-    static constexpr unsigned WIN_H   = 780u;
+    static constexpr unsigned WIN_H   = 800u;
     static constexpr float    BOARD_X = 42.f;
-    static constexpr float    BOARD_Y = 125.f;
+    static constexpr float    BOARD_Y = 145.f;
 
     // ── Layout constants (Member B added) ────────────────────
     static constexpr float TOOLBAR_Y = static_cast<float>(WIN_H) - 55.f;

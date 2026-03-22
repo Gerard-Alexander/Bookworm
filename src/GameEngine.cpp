@@ -303,12 +303,12 @@ void GameEngine::renderGame() {
     sf::Text topLabel(m_font, "BOOKWORM", 22u);
     topLabel.setFillColor(sf::Color(255, 200, 50));
     topLabel.setStyle(sf::Text::Bold);
-    topLabel.setPosition({ 10.f, 5.f });
+    topLabel.setPosition({ 20.f, 5.f });
     m_window.draw(topLabel); 
 
     m_grid.draw(m_window, m_totalTime);
 
-    drawSidebar();
+    //drawSidebar();
 
     m_window.draw(m_wordText);
 
@@ -316,15 +316,16 @@ void GameEngine::renderGame() {
     m_btnClear  .draw(m_window);
     m_btnNewGame.draw(m_window);
     m_btnExit   .draw(m_window);
+    m_btnHelp   .draw(m_window);
+
+    m_window.draw(m_hintText);   // hint bar at the bottom
 
     if (m_messageTimer > 0.f)
         m_window.draw(m_messageText);
 
     if (m_noPossibleWord)
         m_window.draw(m_warningText);
-    
-    m_btnHelp.draw(m_window);
-}
+    }
 
 // ============================================================
 //  renderGameOverOverlay()
@@ -365,7 +366,7 @@ void GameEngine::drawSidebar() {
 
     // Score + Level
     m_scoreText.setPosition({ 10.f, 42.f });
-m_highScoreText.setPosition({ 10.f, 62.f }); 
+    m_highScoreText.setPosition({ 10.f, 62.f }); 
 m_levelText.setPosition({ 10.f, 82.f });    
     m_window.draw(m_scoreText);
     m_window.draw(m_highScoreText);
@@ -520,7 +521,7 @@ void GameEngine::renderHelp() {
         "Longer words earn more points.\n"
         "Lives are lost when burning tiles explode.\n"
         "Level up by finding enough words.",
-        16u);
+        26u);
 
     instructions.setFillColor(sf::Color(220, 220, 220));
     instructions.setLineSpacing(1.4f);
@@ -598,19 +599,23 @@ void GameEngine::resetGame() {
 //  initButtons()
 // ============================================================
 void GameEngine::initButtons() {
-    // 5 toolbar buttons evenly spaced along the bottom
     const float btnH = 44.f;
     const float btnW = 108.f;
     const float gap  =   6.f;
-    float       x    =  18.f;
+
+    // Calculate total width of all 4 buttons + gaps then centre them
+    float totalWidth = (btnW * 4) + (gap * 3);
+    float startX = (WIN_W / 2.f) - (totalWidth / 2.f);
+    float x = startX;
 
     m_btnSubmit .init(m_font, "Submit",   {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
     m_btnClear  .init(m_font, "Clear",    {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
     m_btnNewGame.init(m_font, "New Game", {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
-    m_btnHelp.init(m_font, "?", {WIN_W - 50.f, 10.f}, {40.f, 40.f}, 22u);
     m_btnExit   .init(m_font, "Exit",     {x, TOOLBAR_Y}, {btnW, btnH});
 
-    // 2 menu screen buttons centred
+    m_btnHelp.init(m_font, "?", {WIN_W - 50.f, 10.f}, {40.f, 40.f}, 22u);
+
+    // Menu buttons
     const float mW = 220.f, mH = 52.f;
     const float mX = WIN_W / 2.f - mW / 2.f;
     m_btnPlay    .init(m_font, "Play Game", {mX, WIN_H / 2.f},        {mW, mH}, 20u);
@@ -647,16 +652,6 @@ void GameEngine::initHUDText() {
     m_messageText.setFillColor(sf::Color(255, 220, 50));
     m_messageText.setStyle(sf::Text::Bold);
 
-    m_hintText = sf::Text(m_font,
-        "ENTER=submit  |  BACKSPACE=clear  |  R=restart",
-        12u);
-    m_hintText.setFillColor(sf::Color(140, 115, 75));
-    {
-        sf::FloatRect b = m_hintText.getLocalBounds();
-        m_hintText.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
-        m_hintText.setPosition({ WIN_W / 2.f,
-                                   static_cast<float>(WIN_H) - 20.f });
-    }
 
     m_warningText = sf::Text(m_font,
         "WARNING: No possible word on the board!", 14u);
@@ -695,6 +690,7 @@ void GameEngine::drawOverlay(const std::string& title,
     sf::RectangleShape dim({ static_cast<float>(WIN_W),
                               static_cast<float>(WIN_H) });
     dim.setFillColor(sf::Color(0, 0, 0, 175));
+    m_window.draw(dim);
 
     sf::Text t(m_font, title, 56u);
     t.setFillColor(sf::Color(255, 80, 80));
