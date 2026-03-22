@@ -220,10 +220,6 @@ void GameEngine::render() {
         case GameState::Playing:
             renderGame();
             break;
-        case GameState::Paused:
-            renderGame();
-            renderPauseOverlay();
-            break;
         case GameState::GameOver:
             renderGame();
             renderGameOverOverlay();
@@ -316,7 +312,6 @@ void GameEngine::renderGame() {
 
     m_btnSubmit .draw(m_window);
     m_btnClear  .draw(m_window);
-    m_btnPause  .draw(m_window);
     m_btnNewGame.draw(m_window);
     m_btnExit   .draw(m_window);
 
@@ -327,25 +322,6 @@ void GameEngine::renderGame() {
         m_window.draw(m_warningText);
     
     m_btnHelp.draw(m_window);
-}
-
-// ============================================================
-//  renderPauseOverlay()
-// ============================================================
-void GameEngine::renderPauseOverlay() {
-    drawOverlay("PAUSED", "Press ESC or click Resume to continue");
-
-    // Build a temporary button for the Resume click target.
-    // Position must exactly match the area checked in onMousePressed.
-    Button btnResume;
-    btnResume.init(m_font, "Resume",
-                   { WIN_W / 2.f - 85.f, WIN_H / 2.f + 55.f },
-                   { 170.f, 44.f }, 17u);
-
-    sf::Vector2i mp = sf::Mouse::getPosition(m_window);
-    btnResume.setHover(btnResume.contains({
-        static_cast<float>(mp.x), static_cast<float>(mp.y) }));
-    btnResume.draw(m_window);
 }
 
 // ============================================================
@@ -440,7 +416,6 @@ void GameEngine::updateHUD() {
 void GameEngine::onMouseMoved(sf::Vector2f pos) {
     m_btnSubmit .setHover(m_btnSubmit .contains(pos));
     m_btnClear  .setHover(m_btnClear  .contains(pos));
-    m_btnPause  .setHover(m_btnPause  .contains(pos));
     m_btnNewGame.setHover(m_btnNewGame.contains(pos));
     m_btnExit   .setHover(m_btnExit   .contains(pos));
     m_btnPlay    .setHover(m_btnPlay    .contains(pos));
@@ -463,13 +438,6 @@ void GameEngine::onMousePressed(sf::Vector2f pos) {
         return;
     }
 
-    if (m_state == GameState::Paused) {
-        sf::FloatRect resumeArea(
-            { WIN_W / 2.f - 85.f, WIN_H / 2.f + 55.f }, { 170.f, 44.f });
-        if (resumeArea.contains(pos))
-            m_state = GameState::Playing;
-        return;
-    }
     if (m_state == GameState::Help) {
         sf::FloatRect backArea({WIN_W / 2.f - 85.f, WIN_H - 100.f}, {170.f, 44.f});
         if (backArea.contains(pos)) {
@@ -491,7 +459,6 @@ void GameEngine::onMousePressed(sf::Vector2f pos) {
     // Playing: toolbar buttons first
     if (m_btnSubmit .contains(pos)) { trySubmitWord();             return; }
     if (m_btnClear  .contains(pos)) { m_grid.clearSelection();     return; }
-    if (m_btnPause  .contains(pos)) { m_state = GameState::Paused; return; }
     if (m_btnNewGame.contains(pos)) { resetGame();                  return; }
     if (m_btnExit.contains(pos)) {
         saveHighScore();      
@@ -514,10 +481,6 @@ void GameEngine::onKeyPressed(sf::Keyboard::Key key) {
             break;
         case sf::Keyboard::Key::Backspace:
             if (m_state == GameState::Playing) m_grid.clearSelection();
-            break;
-        case sf::Keyboard::Key::Escape:
-            if      (m_state == GameState::Playing) m_state = GameState::Paused;
-            else if (m_state == GameState::Paused)  m_state = GameState::Playing;
             break;
         case sf::Keyboard::Key::R:
             resetGame();
@@ -633,7 +596,6 @@ void GameEngine::initButtons() {
 
     m_btnSubmit .init(m_font, "Submit",   {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
     m_btnClear  .init(m_font, "Clear",    {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
-    m_btnPause  .init(m_font, "Pause",    {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
     m_btnNewGame.init(m_font, "New Game", {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
     m_btnHelp.init(m_font, "?", {WIN_W - 50.f, 10.f}, {40.f, 40.f}, 22u);
     m_btnExit   .init(m_font, "Exit",     {x, TOOLBAR_Y}, {btnW, btnH});
@@ -673,7 +635,7 @@ void GameEngine::initHUDText() {
     m_messageText.setStyle(sf::Text::Bold);
 
     m_hintText = sf::Text(m_font,
-        "ENTER=submit  |  BACKSPACE=clear  |  ESC=pause  |  R=restart",
+        "ENTER=submit  |  BACKSPACE=clear  |  R=restart",
         12u);
     m_hintText.setFillColor(sf::Color(140, 115, 75));
     {
