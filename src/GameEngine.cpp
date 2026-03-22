@@ -60,7 +60,7 @@ void Button::draw(sf::RenderWindow& window) const {
 // ============================================================
 GameEngine::GameEngine()
     : m_window(sf::VideoMode({WIN_W, WIN_H}),
-               "Bookworm",
+               "Orthography",
                sf::Style::Titlebar | sf::Style::Close),
       m_grid(m_font, {BOARD_X, BOARD_Y}),
       m_scoreText  (m_font, "Score: 0", 18u),
@@ -68,7 +68,7 @@ GameEngine::GameEngine()
       m_wordText   (m_font, "...",       26u),
       m_messageText(m_font, "",          24u),
       m_hintText   (m_font, "",          13u),
-      m_titleText  (m_font, "BOOKWORM",  50u),
+      m_titleText  (m_font, "ORTHOGRAPHY",  50u),
       m_warningText(m_font, "",          15u)
 {
     m_window.setFramerateLimit(60);
@@ -298,7 +298,7 @@ void GameEngine::renderGame() {
     drawSidebar();              // draws the dark panel first
 
     // Draw title ON TOP of the panel
-    sf::Text topLabel(m_font, "BOOKWORM", 22u);
+    sf::Text topLabel(m_font, "ORTHOGRAPHY", 22u);
     topLabel.setFillColor(sf::Color(255, 200, 50));
     topLabel.setStyle(sf::Text::Bold);
     topLabel.setPosition({ 10.f, 5.f });
@@ -611,7 +611,7 @@ void GameEngine::initButtons() {
 //  initHUDText()  -  original method name kept
 // ============================================================
 void GameEngine::initHUDText() {
-    m_titleText = sf::Text(m_font, "BOOKWORM", 58u);
+    m_titleText = sf::Text(m_font, "ORTHOGRAPHY", 58u);
     m_titleText.setFillColor(sf::Color(255, 200, 50));
     m_titleText.setStyle(sf::Text::Bold);
     {
