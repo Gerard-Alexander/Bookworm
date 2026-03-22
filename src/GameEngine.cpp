@@ -387,6 +387,7 @@ m_levelText.setPosition({ 10.f, 82.f });
     m_window.draw(xpBg);
 
     float ratio = static_cast<float>(m_player.getXP()) / m_player.getXPToNextLevel();
+    if (ratio > 1.f) ratio = 1.f;
     sf::RectangleShape xpFill({ ratio * barWidth, 12.f });
     xpFill.setFillColor(sf::Color(100, 200, 100));
     xpFill.setPosition({ 200.f, 90.f });

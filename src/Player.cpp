@@ -26,7 +26,7 @@ int Player::calculateWordScore(const std::string& word, int tileValueSum) const 
     else if (len >= 6) bonus = len * 20;
     else if (len >= 5) bonus = len * 10;
 
-    return (tileValueSum + bonus) * m_level;
+    return (tileValueSum + bonus);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
