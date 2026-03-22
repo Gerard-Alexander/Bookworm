@@ -53,7 +53,7 @@ private:
     // ── SFML ─────────────────────────────────────────────────
     sf::RenderWindow m_window;
     sf::Font         m_font;
-
+    GameState m_prevState = GameState::Menu;
     // ── Subsystems ───────────────────────────────────────────
     Grid       m_grid;
     Dictionary m_dictionary;
@@ -66,12 +66,15 @@ private:
     sf::Text m_messageText;
     sf::Text m_hintText;
     sf::Text m_titleText;
+    sf::Text m_highScoreText;
 
+    // ── Sounds (original) ──────────────────────────────────
     sf::Music m_backgroundMusic;
     sf::SoundBuffer m_clickBuffer;
     std::optional<sf::Sound> m_clickSound;
     sf::SoundBuffer m_damageBuffer;
     std::optional<sf::Sound> m_damageSound;
+    
     // ── HUD text (Member B added) ─────────────────────────────
     sf::Text m_warningText;
 
@@ -132,9 +135,9 @@ private:
 
     // ── Layout constants (original — kept exactly) ────────────
     static constexpr unsigned WIN_W   = 600u;
-    static constexpr unsigned WIN_H   = 780u;
+    static constexpr unsigned WIN_H   = 800u;
     static constexpr float    BOARD_X = 42.f;
-    static constexpr float    BOARD_Y = 125.f;
+    static constexpr float    BOARD_Y = 145.f;
 
     // ── Layout constants (Member B added) ────────────────────
     static constexpr float TOOLBAR_Y = static_cast<float>(WIN_H) - 55.f;

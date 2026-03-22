@@ -69,8 +69,10 @@ GameEngine::GameEngine()
       m_messageText(m_font, "",          24u),
       m_hintText   (m_font, "",          13u),
       m_titleText  (m_font, "ORTHOGRAPHY",  50u),
+      m_highScoreText(m_font, "High Score: 0", 18u),
       m_warningText(m_font, "",          15u)
 {
+    
     m_window.setFramerateLimit(60);
 }
 
@@ -301,12 +303,12 @@ void GameEngine::renderGame() {
     sf::Text topLabel(m_font, "ORTHOGRAPHY", 22u);
     topLabel.setFillColor(sf::Color(255, 200, 50));
     topLabel.setStyle(sf::Text::Bold);
-    topLabel.setPosition({ 10.f, 5.f });
+    topLabel.setPosition({ 20.f, 5.f });
     m_window.draw(topLabel); 
 
     m_grid.draw(m_window, m_totalTime);
 
-    drawSidebar();
+    //drawSidebar();
 
     m_window.draw(m_wordText);
 
@@ -314,15 +316,16 @@ void GameEngine::renderGame() {
     m_btnClear  .draw(m_window);
     m_btnNewGame.draw(m_window);
     m_btnExit   .draw(m_window);
+    m_btnHelp   .draw(m_window);
+
+    m_window.draw(m_hintText);   // hint bar at the bottom
 
     if (m_messageTimer > 0.f)
         m_window.draw(m_messageText);
 
     if (m_noPossibleWord)
         m_window.draw(m_warningText);
-    
-    m_btnHelp.draw(m_window);
-}
+    }
 
 // ============================================================
 //  renderGameOverOverlay()
@@ -363,10 +366,12 @@ void GameEngine::drawSidebar() {
 
     // Score + Level
     m_scoreText.setPosition({ 10.f, 42.f });
-    m_levelText.setPosition({ 10.f, 68.f });
+    m_highScoreText.setPosition({ 10.f, 62.f }); 
+m_levelText.setPosition({ 10.f, 82.f });    
     m_window.draw(m_scoreText);
+    m_window.draw(m_highScoreText);
     m_window.draw(m_levelText);
-
+    
     // Lives (hearts)
     for (int i = 0; i < m_player.getLives(); ++i) {
         sf::CircleShape heart(8.f);
@@ -376,21 +381,23 @@ void GameEngine::drawSidebar() {
     }
 
     // XP Bar
-    sf::RectangleShape xpBg({ 120.f, 12.f });
+    float barWidth = WIN_W * 0.25f; // 25% of screen width
+    sf::RectangleShape xpBg({ barWidth, 12.f });
     xpBg.setFillColor(sf::Color(80, 60, 40));
-    xpBg.setPosition({ 200.f, 70.f });
+    xpBg.setPosition({ 200.f, 90.f });
     m_window.draw(xpBg);
 
     float ratio = static_cast<float>(m_player.getXP()) / m_player.getXPToNextLevel();
-    sf::RectangleShape xpFill({ ratio * 120.f, 12.f });
+    if (ratio > 1.f) ratio = 1.f;
+    sf::RectangleShape xpFill({ ratio * barWidth, 12.f });
     xpFill.setFillColor(sf::Color(100, 200, 100));
-    xpFill.setPosition({ 200.f, 70.f });
+    xpFill.setPosition({ 200.f, 90.f });
     m_window.draw(xpFill);
 
     sf::Text burnCounterText(m_font,
-        "Burning Tiles: " + std::to_string(m_grid.getBurnCount()), 16u);
+    "Burning Tiles: " + std::to_string(m_grid.getBurnCount()), 16u);
     burnCounterText.setFillColor(sf::Color(255, 200, 100));
-    burnCounterText.setPosition({ 360.f, 75.f });
+    burnCounterText.setPosition({ 200.f, 64.f });
     m_window.draw(burnCounterText);
 }
 // ============================================================
@@ -398,6 +405,7 @@ void GameEngine::drawSidebar() {
 // ============================================================
 void GameEngine::updateHUD() {
     m_scoreText.setString("Score: " + std::to_string(m_player.getScore()));
+    m_highScoreText.setString("High Score: " + std::to_string(m_highScore));
     m_levelText.setString("Level: " + std::to_string(m_player.getLevel()));
 
     std::string word = m_grid.getSelectedWord();
@@ -467,7 +475,10 @@ void GameEngine::onMousePressed(sf::Vector2f pos) {
         m_player.reset();
         return;
     }
-    
+    if (m_btnHelp.contains(pos)) {
+        m_state = GameState::Help;
+        return;
+    }
     m_grid.onMousePressed(pos);
 }
 
@@ -510,7 +521,7 @@ void GameEngine::renderHelp() {
         "Longer words earn more points.\n"
         "Lives are lost when burning tiles explode.\n"
         "Level up by finding enough words.",
-        16u);
+        26u);
 
     instructions.setFillColor(sf::Color(220, 220, 220));
     instructions.setLineSpacing(1.4f);
@@ -588,19 +599,23 @@ void GameEngine::resetGame() {
 //  initButtons()
 // ============================================================
 void GameEngine::initButtons() {
-    // 5 toolbar buttons evenly spaced along the bottom
     const float btnH = 44.f;
     const float btnW = 108.f;
     const float gap  =   6.f;
-    float       x    =  18.f;
+
+    // Calculate total width of all 4 buttons + gaps then centre them
+    float totalWidth = (btnW * 4) + (gap * 3);
+    float startX = (WIN_W / 2.f) - (totalWidth / 2.f);
+    float x = startX;
 
     m_btnSubmit .init(m_font, "Submit",   {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
     m_btnClear  .init(m_font, "Clear",    {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
     m_btnNewGame.init(m_font, "New Game", {x, TOOLBAR_Y}, {btnW, btnH}); x += btnW + gap;
-    m_btnHelp.init(m_font, "?", {WIN_W - 50.f, 10.f}, {40.f, 40.f}, 22u);
     m_btnExit   .init(m_font, "Exit",     {x, TOOLBAR_Y}, {btnW, btnH});
 
-    // 2 menu screen buttons centred
+    m_btnHelp.init(m_font, "?", {WIN_W - 50.f, 10.f}, {40.f, 40.f}, 22u);
+
+    // Menu buttons
     const float mW = 220.f, mH = 52.f;
     const float mX = WIN_W / 2.f - mW / 2.f;
     m_btnPlay    .init(m_font, "Play Game", {mX, WIN_H / 2.f},        {mW, mH}, 20u);
@@ -620,6 +635,9 @@ void GameEngine::initHUDText() {
         m_titleText.setPosition({ WIN_W / 2.f, 80.f });
     }
 
+    m_highScoreText = sf::Text(m_font, "High Score: 0", 18u);
+    m_highScoreText.setFillColor(sf::Color(255, 240, 180));
+
     m_scoreText = sf::Text(m_font, "Score: 0", 18u);
     m_scoreText.setFillColor(sf::Color(255, 240, 180));
 
@@ -634,16 +652,6 @@ void GameEngine::initHUDText() {
     m_messageText.setFillColor(sf::Color(255, 220, 50));
     m_messageText.setStyle(sf::Text::Bold);
 
-    m_hintText = sf::Text(m_font,
-        "ENTER=submit  |  BACKSPACE=clear  |  R=restart",
-        12u);
-    m_hintText.setFillColor(sf::Color(140, 115, 75));
-    {
-        sf::FloatRect b = m_hintText.getLocalBounds();
-        m_hintText.setOrigin({ b.position.x + b.size.x / 2.f, 0.f });
-        m_hintText.setPosition({ WIN_W / 2.f,
-                                   static_cast<float>(WIN_H) - 20.f });
-    }
 
     m_warningText = sf::Text(m_font,
         "WARNING: No possible word on the board!", 14u);
@@ -682,6 +690,7 @@ void GameEngine::drawOverlay(const std::string& title,
     sf::RectangleShape dim({ static_cast<float>(WIN_W),
                               static_cast<float>(WIN_H) });
     dim.setFillColor(sf::Color(0, 0, 0, 175));
+    m_window.draw(dim);
 
     sf::Text t(m_font, title, 56u);
     t.setFillColor(sf::Color(255, 80, 80));
